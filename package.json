@@ -1,0 +1,29 @@
+{
+  "name": "web2kindle",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavidBNavarro/iOS2Kindle.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/DavidBNavarro/iOS2Kindle/issues"
+  },
+  "homepage": "https://github.com/DavidBNavarro/iOS2Kindle#readme",
+  "dependencies": {
+    "jsdom": "^29.1.1",
+    "jszip": "^3.10.1"
+  }
+}

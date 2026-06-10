@@ -66,30 +66,58 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === "fetchPageContent") {
-    fetch(msg.url)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const contentType = (r.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
-        if (contentType.startsWith("text/html")) {
-          return r.text().then((text) => {
-            sendResponse({ text, contentType: contentType || "text/html", sourceMode: "html-fetch" });
+    (async () => {
+      var backoff = [5000, 30000, 60000];
+      var delays = ["a few seconds", "30 seconds", "a minute"];
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          var r = await fetch(msg.url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+              "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.5",
+            },
           });
-        }
-        return r.arrayBuffer().then((buf) => {
-          const bytes = new Uint8Array(buf);
-          let binary = "";
-          const chunk = 8192;
-          for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+          if (r.status === 429) {
+            if (attempt < 3) {
+              var retryAfter = parseInt(r.headers.get("retry-after") || "0", 10);
+              var waitMs = retryAfter > 0 ? retryAfter * 1000 : backoff[attempt - 1];
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+              continue;
+            }
+            throw new Error("HTTP 429 — site is rate-limiting requests. Try again in " + delays[attempt - 1] + ", or try a different article.");
           }
-          sendResponse({
-            base64: btoa(binary),
-            contentType: contentType || "application/octet-stream",
-            sourceMode: contentType === "application/pdf" ? "pdf" : "html-fetch",
-          });
-        });
-      })
-      .catch((err) => sendResponse({ error: err.message }));
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const contentType = (r.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
+          if (contentType.startsWith("text/html")) {
+            var text = await r.text();
+            sendResponse({ text, contentType: contentType || "text/html", sourceMode: "html-fetch" });
+          } else {
+            var buf = await r.arrayBuffer();
+            var bytes = new Uint8Array(buf);
+            var binary = "";
+            var chunk = 8192;
+            for (var i = 0; i < bytes.length; i += chunk) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+            }
+            sendResponse({
+              base64: btoa(binary),
+              contentType: contentType || "application/octet-stream",
+              sourceMode: contentType === "application/pdf" ? "pdf" : "html-fetch",
+            });
+          }
+          return;
+        } catch (err) {
+          var triesLeft = 3 - attempt;
+          if (err.message.includes("429") && triesLeft > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+            continue;
+          }
+          sendResponse({ error: err.message });
+          return;
+        }
+      }
+    })();
     return true;
   }
 
@@ -106,7 +134,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         var profileResp = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
           headers: { Authorization: "Bearer " + token },
         });
-        if (!profileResp.ok) throw new Error("Failed to get Gmail profile");
+        if (!profileResp.ok) {
+          var profileErr = await profileResp.text().catch(function(){ return ""; });
+          throw new Error("Failed to get Gmail profile (" + profileResp.status + "): " + profileErr.slice(0, 200));
+        }
         var profile = await profileResp.json();
         var fromEmail = profile.emailAddress;
 

@@ -147,10 +147,47 @@ async function checkConversionLimit() {
   return count < FREE_LIMIT;
 }
 
+async function tryArchiveFallback(url) {
+  var hosts = ["https://web.archive.org/web/2020/", "https://archive.ph/"];
+  for (var i = 0; i < hosts.length; i++) {
+    var archiveUrl = hosts[i].endsWith("/2020/") ? "https://web.archive.org/web/2020/" + url : hosts[i] + url;
+    try {
+      var resp = await fetchViaBackground(archiveUrl);
+      if (resp && resp.text && resp.text.length > 200) return resp;
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function fetchRenderedFromTab(tabId) {
+  try {
+    var results = await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: function(){ return document.documentElement.outerHTML; },
+    });
+    var html = results ? (results[0] ? results[0].result || "" : "") : "";
+    if (html.length > 200) return html;
+  } catch(e) {}
+  return null;
+}
+
 async function processLink() {
   setStatus("Fetching page…");
   var fetchUrl = await resolveArchiveUrl(TARGET_URL);
-  var content = await fetchViaBackground(fetchUrl);
+  var content;
+  try {
+    content = await fetchViaBackground(fetchUrl);
+  } catch (err) {
+    if (!err.message.includes("429")) throw err;
+    setStatus("Direct fetch rate-limited, trying archive…");
+    content = await tryArchiveFallback(TARGET_URL);
+    if (!content && OPENER_TAB_ID > 0) {
+      setStatus("Reading page from tab…");
+      var html = await fetchRenderedFromTab(OPENER_TAB_ID);
+      if (html) content = { text: html, contentType: "text/html", sourceMode: "tab-read" };
+    }
+    if (!content) throw new Error("Rate limited by " + new URL(fetchUrl).hostname + ". Open the article in a tab and try again.");
+  }
   setStatus("Extracting article…");
   var article = extractArticle(content.text, TARGET_URL);
   if (!article) throw new Error("Could not extract article from this page.");
@@ -339,6 +376,7 @@ async function handlePreview(epubBlob, article, html, title) {
   detailsRows += dr("Sent to Kindle", sentDate);
   if (a.readTime) detailsRows += dr("Reading time", a.readTime + " min");
   var detailsHtml = detailsRows ? "<table class=\"details-table\"><tbody>" + detailsRows + "</tbody></table>" : "";
+  var epubBase64 = await blobToBase64(epubBlob);
   await new Promise(function(resolve) {
     chrome.storage.local.set({
       preview_data: {
@@ -349,6 +387,7 @@ async function handlePreview(epubBlob, article, html, title) {
         serverUrl: POPUP_SERVER_URL,
         url: TARGET_URL,
         openerTabId: OPENER_TAB_ID,
+        epubBase64: epubBase64,
       }
     }, resolve);
   });

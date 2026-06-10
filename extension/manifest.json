@@ -17,7 +17,7 @@
   ],
   "oauth2": {
     "client_id": "765612042964-6fme7cj065c025amt81pslggkcnq6ckn.apps.googleusercontent.com",
-    "scopes": ["https://www.googleapis.com/auth/gmail.send"]
+    "scopes": ["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.metadata"]
   },
   "action": {
     "default_popup": "popup.html",

@@ -435,7 +435,8 @@ async function handlePasteConvert() {
       return;
     }
     setProgress("Sending to Kindle…", 85);
-    var data = await sendEpubViaServer(result.epubBlob, result.title, "");
+    var base64 = await blobToBase64(result.epubBlob);
+    var data = await sendEmailViaBackground(base64, result.title, "", (result.title || "article") + ".epub");
     setProgress("Done!", 100);
     showResult(formatSendSuccess(data));
     recordSend(result.title, "", "sent");

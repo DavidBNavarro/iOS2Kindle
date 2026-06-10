@@ -4,3 +4,6 @@ __pycache__/
 config.json
 node_modules/
 history.db
+tests/output/*.epub
+tests/*.epub
+test_urls.md

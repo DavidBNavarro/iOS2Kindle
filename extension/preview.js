@@ -1,7 +1,19 @@
 var undoStack = [];
 var _selectedBlock = null;
-var _sv = "";
 var _url = "";
+var _epubBase64 = "";
+
+function sendEmailViaBackground(epubBase64, title, url, filename) {
+  return new Promise(function(resolve, reject) {
+    filename = (filename || "article").replace(/[^A-Za-z0-9._ -]/g, "").trim() || "article";
+    if (!filename.endsWith(".epub")) filename += ".epub";
+    chrome.runtime.sendMessage({ action: "sendEmail", epub: epubBase64, title: title, url: url, filename: filename }, function(resp) {
+      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+      if (resp.error) return reject(new Error(resp.error));
+      resolve(resp);
+    });
+  });
+}
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
@@ -105,84 +117,19 @@ function blobToDataUrl(blob) {
 
 async function sendToKindle() {
   var title = document.getElementById("p2k-title").value.trim() || "Article";
-  var sections = document.querySelectorAll("#p2k-content > .p2k-section:not(.p2k-removed)");
-  var clones = [];
-  var totalImgs = 0;
-  var processed = 0;
-  for (var si = 0; si < sections.length; si++) {
-    var clone = sections[si].cloneNode(true);
-    var rm = clone.querySelector(".p2k-rm");
-    if (rm) rm.remove();
-    var removed = clone.querySelectorAll(".p2k-removed");
-    for (var i = 0; i < removed.length; i++) removed[i].remove();
-    var rotBtns = clone.querySelectorAll(".p2k-rot");
-    for (var i = 0; i < rotBtns.length; i++) rotBtns[i].remove();
-    var allImgs = clone.querySelectorAll("img");
-    totalImgs += allImgs.length;
-    for (var i = 0; i < allImgs.length; i++) {
-      var wrap = allImgs[i].closest(".imgwrap");
-      var rot = wrap ? parseInt(wrap.getAttribute("data-rot") || "0") : 0;
-      allImgs[i].style.transform = "";
-      allImgs[i].style.width = "";
-      allImgs[i].style.height = "";
-      allImgs[i].style.maxWidth = "";
-      allImgs[i].style.objectFit = "";
-      allImgs[i].style.margin = "";
-      var src = allImgs[i].getAttribute("src") || "";
-      if (src && !src.startsWith("data:") && !src.startsWith("blob:")) {
-        msg("Processing images (" + (processed + 1) + "/" + totalImgs + ")...");
-        try {
-          var blob = await fetchImageAsBlob(src, { referer: _url });
-          if (rot === 0) {
-            try {
-              var info = await getImageInfo(blob);
-              if (shouldRotateImage(info.width, info.height)) rot = 90;
-            } catch(e) {}
-          }
-          if (rot !== 0) {
-            try { blob = await rotateImage(blob, rot); } catch(e) {}
-          }
-          allImgs[i].setAttribute("src", await blobToDataUrl(blob));
-        } catch(e) {}
-      }
-      processed++;
-    }
-    var wraps = clone.querySelectorAll(".imgwrap");
-    for (var i = 0; i < wraps.length; i++) {
-      var parent = wraps[i].parentNode;
-      while (wraps[i].firstChild) parent.insertBefore(wraps[i].firstChild, wraps[i]);
-      wraps[i].remove();
-    }
-    clones.push(clone);
-  }
-  var html = clones.map(function(c) { return c.innerHTML; }).join("\n");
   var btn = document.querySelector(".p2k-bar button:not(.p2k-ghost)");
   btn.disabled = true;
   btn.textContent = "Sending…";
-  msg("Sending…");
-  fetch(_sv + "/send-html", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: title, html: html, url: _url }),
-  })
-    .then(function (r) {
-      var ct = (r.headers.get("content-type") || "").toLowerCase();
-      if (!ct.includes("application/json")) {
-        return r.text().then(function (body) {
-          var snippet = body.replace(/<[^>]+>/g, "").trim().slice(0, 80);
-          throw new Error("Server returned " + r.status + " (" + snippet + "). Try restarting the server: python3 server.py");
-        });
-      }
-      if (!r.ok) {
-        return r.json().then(function (d) { throw new Error(d.error || "Server error " + r.status); });
-      }
-      return r.json();
-    })
-    .then(function (d) {
-      if (d.success) { msg("Sent to Kindle!"); btn.textContent = "✓ Sent"; recordSend(title, _url, "sent"); }
-      else { msg("Error: " + (d.error || "unknown")); btn.disabled = false; btn.textContent = "Send to Kindle"; }
-    })
-    .catch(function (e) { msg("Error: " + e.message); btn.disabled = false; btn.textContent = "Send to Kindle"; });
+  msg("Sending to Kindle…");
+  try {
+    if (!_epubBase64) throw new Error("EPUB data not found. Close and try again from the popup.");
+    var filename = (title || "article").replace(/[^a-zA-Z0-9 _.-]/g, "").trim() || "article";
+    var result = await sendEmailViaBackground(_epubBase64, title, _url, filename + ".epub");
+    msg("Sent to Kindle!"); btn.textContent = "✓ Sent";
+    recordSend(title, _url, "sent");
+  } catch (e) {
+    msg("Error: " + e.message); btn.disabled = false; btn.textContent = "Send to Kindle";
+  }
 }
 
 function wrapSections(html) {
@@ -218,8 +165,8 @@ function initBlockSelection(container) {
 
 function init(data) {
   var metaHtml = data.metaHtml || "";
-  _sv = data.serverUrl || "";
   _url = data.url || "";
+  _epubBase64 = data.epubBase64 || "";
   var escTitle = esc(data.title || "Article");
   var safeTitle = escTitle.replace(/[^a-zA-Z0-9_ -]/g, "").trim().slice(0, 80) || "article";
   var sectionsHtml = wrapSections(data.content || "");
