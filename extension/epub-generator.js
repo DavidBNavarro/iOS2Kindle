@@ -205,7 +205,7 @@ function generateDetailsPage({
   ].filter(Boolean).join("");
 
   return '<?xml version="1.0" encoding="utf-8"?>\n' +
-    '<html xmlns="http://www.w3.org/1999/xhtml">\n' +
+    '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n' +
     "<head><title>Details</title></head>\n" +
     "<body>\n" +
     '<div class="details-page">\n' +
@@ -397,7 +397,7 @@ async function generateEpub(opts) {
   var title = _sanitizeKindleText(titleOverride || article.title || "Article") || "Article";
   var author = _sanitizeKindleText(article.author || "");
   var sitename = article.sitename || "";
-  var pubDate = article.pubDate || "";
+  var pubDate = article.pubDate || article.publishedTime || "";
   var readTime = article.readTime || 0;
 
   var bodyHtml = article.content || "";
@@ -447,7 +447,7 @@ async function generateEpub(opts) {
     readTime: readTime > 0 ? readTime : null,
   });
   var coverXhtml = _epubXmlHeader() +
-    '<html xmlns="http://www.w3.org/1999/xhtml">\n' +
+    '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n' +
     '<head><title>Cover</title></head>\n' +
     '<body>\n' + coverSvg + '\n</body>\n</html>';
 
@@ -563,7 +563,7 @@ async function generateEpub(opts) {
     "</body>";
 
   var contentXhtml = _epubXmlHeader() +
-    '<html xmlns="http://www.w3.org/1999/xhtml">\n' +
+    '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n' +
     '<head><title>' + _esc(title) + '</title></head>\n' +
     contentHtml + '\n</html>';
   oebps.file("content.xhtml", contentXhtml);

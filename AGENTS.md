@@ -1,55 +1,5 @@
 # web2kindle — Current Architecture & Workflow
 
-## Files
-- `ios/iOS2Kindle.js` (entry point, runs in Scriptable)
-- `ios/bundle.js` (JSZip + Readability + EPUB generators, loaded by iOS2Kindle.js)
-- `tests/test_full_pipeline.js`, `tests/test_wikipedia.js` (local validation)
-
-## How It Works
-
-1. **iOS2Kindle.js** fetches article HTML via `Request`, loads `bundle.js` into a **WebView**, processes the article using Readability inside the WebView, builds the EPUB and base64-encodes it all within the WebView, returns the base64 string. Then sends the EPUB to Kindle via the **Gmail API** (fully automatic, no compose sheet).
-
-2. **Everything binary happens inside the WebView** — ZIP building, `String.fromCharCode`, `btoa()`. This is critical because Scriptable's JavaScriptCore `btoa()` may mishandle bytes >127 (producing UTF-8 double-encoding corruption). Safari's WebView `btoa()` handles binary bytes correctly.
-
-3. **Bundle.js** is evaled in TWO contexts: first in the main context (for utility functions: `_sanitizeKindleText`, `_esc`, `_uuid`, `_epubXmlHeader`, `_xhtmlDoctype`, `_containerXml`, `_contentOpf`, `_tocNcx`, `_KINDLE_CSS`, `escapeHtml`), then again in the WebView (for Readability, `_sanitizeHtmlForEpub`, `stripUiText`, `stripTrailingRelated`, `_restoreHeadings`, `_supplementContent`, `_extractDomArticle`, `_contentFingerprint`, `_isArticleContentElement`, `_findArticleContainer`, `_selfCloseVoidElements`, `generateEpub`, `generateCoverImageSvg`, `generateDetailsPage`).
-
-## iOS Gmail API Flow (iOS2Kindle.js)
-
-### First Run
-1. Check `Keychain` for `ios2kindle_gmail_refresh` — if missing, launch **OAuth2 WebView** to `accounts.google.com/o/oauth2/v2/auth` (scope: `gmail.send`, access_type: offline)
-2. User logs into Google and grants consent
-3. Script polls the WebView for the authorization code (from `.code` element on the OOB page)
-4. Exchanges code for `access_token` + `refresh_token` via POST to `oauth2.googleapis.com/token`
-5. Stores `refresh_token` in `Keychain`
-
-### Every Share
-6. Gets fresh `access_token` by exchanging the stored `refresh_token`
-7. Builds RFC 2822 MIME message with EPUB as base64 attachment (76-char wrapped lines)
-8. Base64url-encodes the MIME message and POSTs to `gmail.googleapis.com/gmail/v1/users/me/messages/send`
-9. Shows "Sent to Kindle!" alert
-
-### Keychain Storage
-- `ios2kindle_gmail_refresh` — Google OAuth2 refresh token (never expires unless revoked)
-- If token refresh fails, key is removed and first-run flow triggers again
-
-### Credentials (hardcoded, do NOT commit to git)
-- `CLIENT_ID`, `CLIENT_SECRET` from Google Cloud Console (Desktop app OAuth2 client)
-- `KINDLE_EMAIL` — Send-to-Kindle address
-
-## Key Constraints
-- **No DOMParser/XMLSerializer** in main context — only available inside WebView
-- **No JSZip** — causes `setImmediate` error in JavaScriptCore; use custom ZIP builder
-- **No `btoa()` in main context** — may corrupt binary bytes >127; use WebView's `btoa()`
-- **Dropbox corrupts binary EPUBs** (UTF-8 re-encoding) — always test from iOS directly, or AirDrop to Mac
-- **EPUB 2.0.1** — content documents must use XHTML 1.1; OPF version 2.0; NCX for TOC
-
-## Custom ZIP Builder
-Located in iOS2Kindle.js (embedded in the WebView eval string). Produces valid ZIP with:
-- `mimetype` first, stored (no compression)
-- All other files stored (no compression)
-- Proper little-endian headers, CRC32, and EOCD record
-- UTF-8 encoded filenames and data
-
 ## EPUB Structure
 ```
 mimetype
@@ -60,7 +10,7 @@ OEBPS/toc.ncx         (xml:lang="en", dtb:uid, dtb:depth, navPoints)
 OEBPS/style/default.css
 ```
 
-## Sanitization Chain (in WebView eval)
+## Sanitization Chain
 1. `_restoreHeadings` — replace heading content if it was stripped by Readability
 2. `_supplementContent` — append article content missed by Readability (tables, lists, sidebars)
 3. `stripUiText` — remove "If you buy something..." affiliate text
@@ -86,14 +36,9 @@ OEBPS/style/default.css
 
 ## Validation
 ```bash
-# Run all tests
+# Run tests
 node tests/test_full_pipeline.js
-
-# Wikipedia-specific test (hardcoded to EPUB article)
-node tests/test_wikipedia.js
-
-# Generate clean Web scraping EPUB for Kindle Previewer
-node -e "..." # See tests/test_wikipedia.js for pattern
+node tests/test_generateEpub.js
 
 # Epubcheck (requires Java)
 epubcheck tests/output/simple_article.epub
@@ -104,7 +49,7 @@ cp tests/output/web_scraping.epub /tmp/ && kindlepreviewer /tmp/web_scraping.epu
 
 ## Test Fixtures
 `tests/test_full_pipeline.js` tests 4 synthetic pages + validates ZIP structure via JSZip.
-`tests/test_wikipedia.js` fetches live Wikipedia article, processes through full pipeline.
+`tests/test_generateEpub.js` tests EPUB generation via `generateEpub` using JSZip.
 Output EPUBs go to `tests/output/`.
 
 ## Chrome Extension (`extension/`)
@@ -141,5 +86,4 @@ to remove the Chrome extension files, but they remain recoverable via `git check
 
 ## Known Issues
 - No Kindle-specific validator on Mac — use Kindle Previewer 3 for conversion check
-- Console logging (`console.log`) errors in Scriptable — catch and show via Alert
-- `generateEpub()` function in bundle.js uses JSZip + DOMParser in main context — NOT used by iOS2Kindle.js (would fail). Only used by local tests.
+- Dropbox corrupts binary EPUBs (UTF-8 re-encoding) — always test from Chrome directly, or AirDrop to Mac

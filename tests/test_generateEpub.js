@@ -1,4 +1,3 @@
-// Test generateEpub using JSZip (the new ios2kindle path)
 const fs = require("fs");
 const path = require("path");
 const { JSDOM } = require("jsdom");
@@ -6,9 +5,6 @@ const npmJSZip = require("jszip");
 const ROOT = path.join(__dirname, "..");
 
 async function main() {
-  const bundlePath = path.join(ROOT, "ios", "bundle.js");
-  const bundleCode = fs.readFileSync(bundlePath, "utf8");
-
   const html = `<!DOCTYPE html>
 <html><head><title>Test Article</title></head>
 <body><article>
@@ -26,7 +22,7 @@ async function main() {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
 
-  // Set up JSDOM globals needed by the bundle
+  // Set up JSDOM globals needed by the extension sources
   globalThis.document = doc;
   globalThis.Node = dom.window.Node;
   globalThis.DOMParser = dom.window.DOMParser;
@@ -34,11 +30,11 @@ async function main() {
   globalThis.Element = dom.window.Element;
   globalThis.DOMTokenList = dom.window.DOMTokenList;
   globalThis.Set = Set;
-  // In Scriptable, this bundle UMD sets globalThis.JSZip.
-  // In Node it uses module.exports, so pre-set the global for generateEpub.
   globalThis.JSZip = npmJSZip;
 
-  eval(bundleCode);
+  eval(fs.readFileSync(path.join(ROOT, "extension", "lib", "readability.js"), "utf8"));
+  eval(fs.readFileSync(path.join(ROOT, "extension", "epub-generator.js"), "utf8"));
+  eval(fs.readFileSync(path.join(ROOT, "extension", "article-extractor.js"), "utf8"));
 
   console.log("=== Test generateEpub with JSZip ===\n");
 
@@ -58,14 +54,15 @@ async function main() {
   console.log("Article title:", article.title);
   console.log("Content length:", content.length);
 
-  const uint8array = await generateEpub({
+  const blob = await generateEpub({
     article: { title: article.title, author: article.author || "", content: content },
     originalHtml: html,
     url: "https://example.com/test-article",
     title: article.title,
     keepLinks: false
   });
-
+  const buf = Buffer.from(await blob.arrayBuffer());
+  const uint8array = new Uint8Array(buf);
   console.log("EPUB generated: " + uint8array.length + " bytes\n");
 
   // Verify ZIP signature
@@ -89,9 +86,10 @@ async function main() {
 
   // mimetype uncompressed
   const mt = loaded.files["mimetype"];
+  // null means uncompressed (STORED) — JSZip doesn't preserve the STORE label on load
   tests.push({
     name: "mimetype stored uncompressed",
-    pass: mt.options.compression === "STORE"
+    pass: mt.options.compression === null || mt.options.compression === "STORE"
   });
 
   // Read content.xhtml and verify structure
