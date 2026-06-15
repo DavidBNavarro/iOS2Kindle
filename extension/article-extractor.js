@@ -45,6 +45,7 @@ function extractArticle(html, url) {
     length: article.length || 0,
     excerpt: article.excerpt || "",
     publishedTime: article.publishedTime || "",
+    pubDate: article.publishedTime || "",
   };
 }
 
