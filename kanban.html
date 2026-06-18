@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web2Kindle — Kanban</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1c25;
+  --surface2: #23252f;
+  --border: #2e3040;
+  --text: #e1e4ed;
+  --text-muted: #8b8fa3;
+  --accent-blue: #3b82f6;
+  --accent-amber: #f59e0b;
+  --accent-green: #10b981;
+  --accent-purple: #8b5cf6;
+  --accent-gray: #6b7280;
+  --accent-emerald: #34d399;
+  --radius: 8px;
+  --font: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  min-height: 100vh;
+  padding: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+h1 span {
+  color: var(--accent-amber);
+}
+
+.controls { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.controls button {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 11px;
+  transition: all .15s;
+}
+.controls button:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  min-height: calc(100vh - 80px);
+}
+
+.column {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 80px);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.column-header h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.column-header .count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.column-header .add-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all .15s;
+}
+.column-header .add-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.cards-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 60px;
+}
+
+.cards-container.drag-over {
+  background: color-mix(in srgb, var(--accent-blue) 8%, var(--surface));
+  border-radius: 4px;
+}
+
+.card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  cursor: grab;
+  transition: box-shadow .15s, opacity .15s;
+  position: relative;
+}
+
+.card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+
+.card.dragging {
+  opacity: .4;
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+
+.card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tag {
+  font-size: 9px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tag-premium { background: color-mix(in srgb, var(--accent-amber) 20%, transparent); color: var(--accent-amber); }
+.tag-growth { background: color-mix(in srgb, var(--accent-green) 20%, transparent); color: var(--accent-green); }
+.tag-polish { background: color-mix(in srgb, var(--accent-purple) 20%, transparent); color: var(--accent-purple); }
+.tag-infra { background: color-mix(in srgb, var(--accent-gray) 20%, transparent); color: var(--accent-gray); }
+.tag-core { background: color-mix(in srgb, var(--accent-blue) 20%, transparent); color: var(--accent-blue); }
+
+.tag-tiny { background: color-mix(in srgb, #6b7280 30%, transparent); color: #9ca3af; }
+.tag-small { background: color-mix(in srgb, #22d3ee 15%, transparent); color: #22d3ee; }
+.tag-medium { background: color-mix(in srgb, var(--accent-amber) 15%, transparent); color: var(--accent-amber); }
+.tag-large { background: color-mix(in srgb, #ef4444 15%, transparent); color: #ef4444; }
+
+.priority-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: auto;
+}
+.priority-high { background: #ef4444; }
+.priority-medium { background: var(--accent-amber); }
+.priority-low { background: var(--accent-green); }
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 420px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.modal h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.modal label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+  margin-top: 12px;
+}
+.modal label:first-child { margin-top: 0; }
+
+.modal input,
+.modal textarea,
+.modal select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-family: var(--font);
+  font-size: 12px;
+}
+.modal textarea { resize: vertical; min-height: 70px; }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+.modal-actions button {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  transition: all .15s;
+}
+.modal-actions .btn-primary {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #fff;
+}
+.modal-actions .btn-primary:hover { filter: brightness(1.15); }
+.modal-actions .btn-danger {
+  background: transparent;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.modal-actions .btn-danger:hover { background: color-mix(in srgb, #ef4444 15%, transparent); }
+
+/* Scrollbar */
+.cards-container::-webkit-scrollbar { width: 4px; }
+.cards-container::-webkit-scrollbar-track { background: transparent; }
+.cards-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Empty state */
+.empty-state {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  padding: 20px 10px;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .board { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .board { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Web2Kindle <span>·</span> Kanban</h1>
+  <div class="controls">
+    <button onclick="exportData()">Export JSON</button>
+    <button onclick="document.getElementById('import-input').click()">Import JSON</button>
+    <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+    <button onclick="resetData()">Reset</button>
+  </div>
+</header>
+
+<div class="board" id="board">
+  <div class="column" data-column="backlog">
+    <div class="column-header">
+      <h2>Backlog <span class="count" id="count-backlog">0</span></h2>
+      <button class="add-btn" onclick="addCard('backlog')" title="Add card">+</button>
+    </div>
+    <div class="cards-container" id="col-backlog" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+  </div>
+  <div class="column" data-column="ready">
+    <div class="column-header">
+      <h2>Ready <span class="count" id="count-ready">0</span></h2>
+      <button class="add-btn" onclick="addCard('ready')" title="Add card">+</button>
+    </div>
+    <div class="cards-container" id="col-ready" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+  </div>
+  <div class="column" data-column="in-progress">
+    <div class="column-header">
+      <h2>In Progress <span class="count" id="count-in-progress">0</span></h2>
+      <button class="add-btn" onclick="addCard('in-progress')" title="Add card">+</button>
+    </div>
+    <div class="cards-container" id="col-in-progress" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+  </div>
+  <div class="column" data-column="done">
+    <div class="column-header">
+      <h2>Done <span class="count" id="count-done">0</span></h2>
+      <button class="add-btn" onclick="addCard('done')" title="Add card">+</button>
+    </div>
+    <div class="cards-container" id="col-done" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Edit Card</h3>
+    <label>Title</label>
+    <input type="text" id="edit-title" maxlength="80">
+    <label>Area</label>
+    <select id="edit-area">
+      <option value="premium">Premium</option>
+      <option value="growth">Growth</option>
+      <option value="polish">Polish</option>
+      <option value="infra">Infrastructure</option>
+      <option value="core">Core</option>
+    </select>
+    <label>Effort</label>
+    <select id="edit-effort">
+      <option value="tiny">Tiny</option>
+      <option value="small">Small</option>
+      <option value="medium">Medium</option>
+      <option value="large">Large</option>
+    </select>
+    <label>Priority</label>
+    <select id="edit-priority">
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <label>Notes</label>
+    <textarea id="edit-notes" rows="3"></textarea>
+    <div class="modal-actions">
+      <button class="btn-danger" id="btn-delete" onclick="deleteCard()">Delete</button>
+      <button onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveCard()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'web2kindle_kanban';
+
+const defaultCards = [
+  // ── Backlog ──
+  { id: 'b1', title: 'Enterprise / team tier', area: 'premium', effort: 'large', priority: 'low', column: 'backlog', notes: 'B2B revenue. Shared credit system? Admin dashboard? Team billing via Lemon Squeezy.' },
+  { id: 'b2', title: 'Pocket / Instapaper / Omnivore import', area: 'growth', effort: 'medium', priority: 'low', column: 'backlog', notes: 'Bulk import reading lists. Lowers switching cost from competitors.' },
+  { id: 'b3', title: 'Multi-part article merge (series detection)', area: 'premium', effort: 'small', priority: 'low', column: 'backlog', notes: 'Detect "Part 1/2/3" in article, offer combined EPUB. Unique no competitor has this.' },
+  { id: 'b4', title: 'Per-site extraction profiles', area: 'polish', effort: 'small', priority: 'low', column: 'backlog', notes: 'Custom extraction rules per hostname. Build when a real problem site appears.' },
+  { id: 'b5', title: 'Reading stats dashboard', area: 'polish', effort: 'small', priority: 'low', column: 'backlog', notes: 'Articles sent, reading time delivered, words converted, streak tracking. Engagement.' },
+  { id: 'b6', title: 'Side panel reading list (Chrome API)', area: 'polish', effort: 'medium', priority: 'low', column: 'backlog', notes: 'Chrome Side Panel API. Always-visible reading list. Saves articles to send later.' },
+  { id: 'b7', title: 'PWA / web app (non-extension users)', area: 'growth', effort: 'medium', priority: 'low', column: 'backlog', notes: 'HTML5 app for users who can\'t install extensions (work laptops, Safari, etc.).' },
+  { id: 'b8', title: 'iOS native app (Share Sheet)', area: 'growth', effort: 'large', priority: 'medium', column: 'backlog', notes: 'Full native Swift app. Share Sheet integration. Biggest untapped market. Replaces clunky Scriptable flow.' },
+  { id: 'b9', title: 'AI translation (article language → user language)', area: 'premium', effort: 'medium', priority: 'low', column: 'backlog', notes: 'Translate articles to preferred language before sending. API costs = natural subscription fit.' },
+  { id: 'b10', title: 'Analytics / A/B test conversion optimization', area: 'infra', effort: 'medium', priority: 'low', column: 'backlog', notes: 'Track which features drive upgrades. Conversion funnel metrics.' },
+
+  // ── Ready ──
+  { id: 'r1', title: 'AI Article Summarization (TL;DR before article)', area: 'premium', effort: 'medium', priority: 'high', column: 'done', notes: 'Vercel proxy (api/summarize.js) wraps Gemini call + license check. Extension sends license key, never sees GEMINI_API_KEY. Pro-only. 24h URL cache. Styled TL;DR block in EPUB.' },
+  { id: 'r2', title: 'RSS-to-Kindle (auto-deliver feeds)', area: 'premium', effort: 'medium', priority: 'high', column: 'ready', notes: 'Subscribe to RSS/Atom feeds. New articles auto-converted and sent. Daily digest mode. Recurring value.' },
+  { id: 'r3', title: 'Newsletter-to-Kindle (email forwarding)', area: 'premium', effort: 'medium', priority: 'high', column: 'ready', notes: 'Inbound email address. Forward newsletters → auto EPUB → Kindle. SendGrid/Cloudflare inbound parse. Unique.' },
+  { id: 'r4', title: 'Two-tier licensing backend (Lemon Squeezy subscriptions)', area: 'infra', effort: 'medium', priority: 'high', column: 'ready', notes: 'Upgrade from one-time $7 checkout to recurring subscriptions. Lemon Squeezy recurring billing API. Vercel + chrome.storage.sync for premium flag with periodic revalidation.' },
+  { id: 'r5', title: 'Keyboard shortcut (Cmd+Shift+E / Ctrl+Shift+E)', area: 'polish', effort: 'tiny', priority: 'medium', column: 'ready', notes: 'Send current page or open preview with keyboard shortcut. Commands API in MV3.' },
+  { id: 'r6', title: 'EPUB file naming ({title} - {date}.epub)', area: 'polish', effort: 'tiny', priority: 'medium', column: 'ready', notes: 'Configurable file naming template. Downloaded EPUBS get meaningful names.' },
+  { id: 'r7', title: 'EPUB template customization (fonts, margins, themes)', area: 'polish', effort: 'small', priority: 'medium', column: 'ready', notes: 'User-selectable templates. CSS presets. Premium tier unlock.' },
+  { id: 'r8', title: 'Chrome Web Store submission', area: 'growth', effort: 'small', priority: 'high', column: 'ready', notes: 'CWS account ($5), screenshots 1280x800, promo tiles, description, <all_urls> justification.' },
+  { id: 'r9', title: 'Arc / Brave / Zen browser support (Chromium forks)', area: 'growth', effort: 'tiny', priority: 'medium', column: 'ready', notes: 'Test on non-Chrome Chromium browsers. Usually zero code changes. Free users.' },
+  { id: 'r10', title: 'Scheduled delivery ("Send at 8am daily")', area: 'premium', effort: 'small', priority: 'medium', column: 'ready', notes: 'Queue articles, schedule send time. Unique differentiator. No competitor has this.' },
+  { id: 'r11', title: '7-day unlimited trial', area: 'infra', effort: 'small', priority: 'high', column: 'ready', notes: 'Trial mode before requiring subscription. Sets premium_until timestamp. Already on roadmap.' },
+  { id: 'r12', title: 'Firefox extension port', area: 'growth', effort: 'small', priority: 'high', column: 'ready', notes: 'Port MV3 Chrome extension to Firefox Manifest V3. Doubles addressable market.' },
+
+  // ── Done ──
+   { id: 'd1', title: 'Gmail API send (serverless OAuth)', area: 'core', effort: 'medium', priority: 'high', column: 'done', notes: 'chrome.identity.getAuthToken() + Gmail API. Replaces SMTP relay. No sign-in issues (Amazon\u2019s #1 complaint).' },
+  { id: 'd2', title: 'Paywall bypass (archive.org / archive.ph)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'resolveArchiveUrl() rewrites paywalled URLs to archive mirrors before fetch. Configurable hosts.' },
+  { id: 'd3', title: 'Batch URL queue (multi-article send)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Paste multiple URLs. Sequential processing. Per-item progress. Summary with retry.' },
+  { id: 'd4', title: 'Preview + edit before send', area: 'core', effort: 'medium', priority: 'high', column: 'done', notes: 'preview.html tab. Section editing, block deletion, image rotation, undo. Send from preview.' },
+  { id: 'd5', title: 'Right-click context menu (Send / Preview)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Link and text selection context menu. Sends via hidden processor tab.' },
+  { id: 'd6', title: 'Image pipeline (download, resize, rotate, deliver)', area: 'core', effort: 'medium', priority: 'high', column: 'done', notes: 'Canvas-based image processing. fetchImageAsBlob, shouldRotateImage, rotateImage, convertFormat, deliveryOptimize.' },
+  { id: 'd7', title: 'Cover image SVG (3 template variants)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'generateCoverImageSvg() in epub-generator.js. Kindle-rendered. Title/author/sitename layout.' },
+  { id: 'd8', title: 'Links reinjection (hyperlinks in Kindle)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'reinjectLinks() restores <a> tags from original HTML into EPUB. User-toggleable.' },
+  { id: 'd9', title: 'Article post-processing (strip UI, restore lists)', area: 'core', effort: 'medium', priority: 'high', column: 'done', notes: 'Strip affiliate text, remove related-content sections, restore <ol>/<blockquote>. Ported from Python.' },
+  { id: 'd10', title: 'Browser-native pipeline (serverless)', area: 'core', effort: 'large', priority: 'high', column: 'done', notes: 'Readability + JSZip replace server-side trafilatura + ebooklib. Full in-extension pipeline.' },
+  { id: 'd11', title: 'Conversion counter + Pro license system', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: '10-conversion free cap. HMAC license key verification. Vercel endpoint. chrome.storage.sync.' },
+  { id: 'd12', title: 'SMTP relay (standalone server)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'smtp_relay.py. Accepts EPUB + config via JSON POST. SMTP delivery. Port 5002.' },
+  { id: 'd13', title: 'Delivery optimization (size control)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Recompress JPEGs to q75. Downscale >1600px. Block send if >25MB. warnEpubSize().' },
+  { id: 'd14', title: 'History (chrome.storage.local, 500 cap)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Send history with search, resend, delete. Capped at 500 entries.' },
+  { id: 'd15', title: 'Estimated read time ("X min read")', area: 'core', effort: 'tiny', priority: 'high', column: 'done', notes: 'Word count / 238 wpm. Displayed in popup preview and EPUB details page.' },
+  { id: 'd16', title: 'EPUB details page (metadata table)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Title, Author, Published, Source, URL, Sent date, Reading time in EPUB.' },
+  { id: 'd17', title: 'Multi-send (comma-separated Kindle addresses)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Send to multiple Kindle addresses. BCC delivery. Helper text in settings.' },
+  { id: 'd18', title: 'Privacy policy page (CWS compliance)', area: 'infra', effort: 'tiny', priority: 'high', column: 'done', notes: 'docs/privacy.html deployed via GitHub Pages. Required for Chrome Web Store listing.' },
+  { id: 'd19', title: 'Conversion cap upgrade UX (nudge/block/PRO badge)', area: 'core', effort: 'small', priority: 'high', column: 'done', notes: 'Nudge at 8-9 conversions. Block card at 10. PRO badge. Settings license input.' },
+];
+
+// ── State ──
+let cards = [];
+let editingId = null;
+
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      cards = JSON.parse(saved);
+      // Ensure all cards have the right fields (migration safety)
+      cards = cards.map(c => ({ ...{ area: 'core', effort: 'tiny', priority: 'medium', notes: '' }, ...c }));
+      render();
+      return;
+    } catch(e) {}
+  }
+  cards = JSON.parse(JSON.stringify(defaultCards));
+  render();
+  saveData();
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+function render() {
+  const columns = ['backlog', 'ready', 'in-progress', 'done'];
+  columns.forEach(col => {
+    const container = document.getElementById('col-' + col);
+    const colCards = cards.filter(c => c.column === col);
+    const countEl = document.getElementById('count-' + col);
+    countEl.textContent = colCards.length;
+
+    if (colCards.length === 0) {
+      container.innerHTML = '<div class="empty-state">Drop cards here</div>';
+      return;
+    }
+
+    container.innerHTML = colCards.map(c => renderCard(c)).join('');
+  });
+}
+
+function renderCard(c) {
+  const areaClass = 'tag-' + (c.area || 'core');
+  const effortClass = 'tag-' + (c.effort || 'tiny');
+  const priClass = 'priority-' + (c.priority || 'medium');
+
+  return `<div class="card" draggable="true" data-id="${c.id}" ondragstart="dragStart(event)" ondblclick="editCard('${c.id}')">
+    <div class="card-title">${escHtml(c.title)}</div>
+    <div class="card-footer">
+      <div class="card-tags">
+        <span class="tag ${areaClass}">${c.area || 'core'}</span>
+        <span class="tag ${effortClass}">${c.effort || 'tiny'}</span>
+      </div>
+      <span class="priority-dot ${priClass}"></span>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Drag & Drop ──
+let draggedId = null;
+
+function dragStart(e) {
+  draggedId = e.target.closest('.card')?.dataset?.id;
+  if (!draggedId) return;
+  e.target.closest('.card').classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedId);
+}
+
+function allowDrop(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const container = e.target.closest('.cards-container');
+  if (container) container.classList.add('drag-over');
+}
+
+document.addEventListener('dragover', e => {
+  document.querySelectorAll('.cards-container').forEach(el => el.classList.remove('drag-over'));
+});
+
+function drop(e) {
+  e.preventDefault();
+  const container = e.target.closest('.cards-container');
+  if (!container) return;
+  container.classList.remove('drag-over');
+  if (!draggedId) return;
+
+  const col = container.closest('.column')?.dataset?.column;
+  if (!col) return;
+
+  const card = cards.find(c => c.id === draggedId);
+  if (card) {
+    card.column = col;
+    saveData();
+    render();
+  }
+  draggedId = null;
+  document.querySelectorAll('.card.dragging').forEach(el => el.classList.remove('dragging'));
+}
+
+document.addEventListener('dragend', () => {
+  document.querySelectorAll('.card.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.cards-container').forEach(el => el.classList.remove('drag-over'));
+  draggedId = null;
+});
+
+// ── Modal ──
+const modal = document.getElementById('modal');
+
+function openModal() {
+  modal.classList.add('open');
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  editingId = null;
+}
+
+modal.addEventListener('click', e => {
+  if (e.target === modal) closeModal();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function addCard(column) {
+  const id = 'c' + Date.now() + Math.random().toString(36).slice(2, 6);
+  const newCard = {
+    id,
+    title: 'New card',
+    area: 'premium',
+    effort: 'medium',
+    priority: 'medium',
+    column: column,
+    notes: '',
+  };
+  cards.push(newCard);
+  saveData();
+  render();
+  // Scroll and open for editing
+  setTimeout(() => {
+    editCard(id);
+    const el = document.querySelector(`[data-id="${id}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+function editCard(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit Card';
+  document.getElementById('edit-title').value = card.title || '';
+  document.getElementById('edit-area').value = card.area || 'core';
+  document.getElementById('edit-effort').value = card.effort || 'tiny';
+  document.getElementById('edit-priority').value = card.priority || 'medium';
+  document.getElementById('edit-notes').value = card.notes || '';
+  document.getElementById('btn-delete').style.display = 'inline-block';
+  openModal();
+  document.getElementById('edit-title').focus();
+}
+
+function saveCard() {
+  if (!editingId) return;
+  const card = cards.find(c => c.id === editingId);
+  if (!card) return;
+  card.title = document.getElementById('edit-title').value.trim() || 'Untitled';
+  card.area = document.getElementById('edit-area').value;
+  card.effort = document.getElementById('edit-effort').value;
+  card.priority = document.getElementById('edit-priority').value;
+  card.notes = document.getElementById('edit-notes').value.trim();
+  saveData();
+  render();
+  closeModal();
+}
+
+function deleteCard() {
+  if (!editingId) return;
+  if (!confirm('Delete this card?')) return;
+  cards = cards.filter(c => c.id !== editingId);
+  saveData();
+  render();
+  closeModal();
+}
+
+// ── Export / Import / Reset ──
+function exportData() {
+  const json = JSON.stringify(cards, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'web2kindle-kanban.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Invalid format');
+      cards = data.map(c => ({ ...{ area: 'core', effort: 'tiny', priority: 'medium', notes: '' }, ...c }));
+      saveData();
+      render();
+    } catch(err) {
+      alert('Invalid JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function resetData() {
+  if (!confirm('Reset all cards to defaults? This cannot be undone.')) return;
+  cards = JSON.parse(JSON.stringify(defaultCards));
+  saveData();
+  render();
+}
+
+// ── Init ──
+loadData();
+</script>
+
+</body>
+</html>

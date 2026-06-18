@@ -231,7 +231,10 @@ var _KINDLE_CSS = "body{font-family:Georgia,serif;line-height:1.6;margin:2em 1.5
   "td,th{border:1px solid #ccc;padding:0.4em 0.6em}" +
   "th{background:#f0f0f0}" +
   "a{color:#2563eb;text-decoration:none}a:hover{text-decoration:underline}" +
-  "ol,ul{margin:0.6em 0;padding-left:2em}";
+  "ol,ul{margin:0.6em 0;padding-left:2em}" +
+  ".p2k-summary{border:1px solid #d0d0d0;border-radius:6px;padding:0.8em 1em;margin:1em 0;background:#fafafa}" +
+  ".p2k-summary h2{font-size:0.85em;text-transform:uppercase;letter-spacing:0.5px;color:#666;margin:0 0 0.4em 0}" +
+  ".p2k-summary p{margin:0;font-size:0.92em;text-indent:0;color:#333}";
 
 function _epubXmlHeader() {
   return '<?xml version="1.0" encoding="utf-8"?>\n';
@@ -307,6 +310,38 @@ function _selfCloseVoidElements(html) {
   });
 }
 
+function _escapeGtInText(xhtml) {
+  var out = "";
+  var inTag = false, inApos = false, inQuot = false;
+  for (var i = 0; i < xhtml.length; i++) {
+    var ch = xhtml[i];
+    if (inApos) {
+      if (ch === "'") inApos = false;
+      out += ch;
+    } else if (inQuot) {
+      if (ch === '"') inQuot = false;
+      out += ch;
+    } else if (ch === "'" && inTag) {
+      inApos = true;
+      out += ch;
+    } else if (ch === '"' && inTag) {
+      inQuot = true;
+      out += ch;
+    } else if (ch === "<") {
+      inTag = true;
+      out += ch;
+    } else if (ch === ">" && inTag) {
+      inTag = false;
+      out += ch;
+    } else if (ch === ">" && !inTag) {
+      out += "&gt;";
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 function _sanitizeKindleText(text) {
   if (!text) return text;
   return text.replace(/[\u200d\u2600-\u27bf\ufe0e-\ufe0f\ud800-\udbff\udc00-\udfff]/g, "")
@@ -368,12 +403,17 @@ function _sanitizeHtmlForEpub(html) {
     }
   }
 
-  // Remove img elements that have no valid src attribute after sanitization
+  // Remove img elements that have no valid src or are Kindle-incompatible
   var imgs = doc.body.querySelectorAll("img");
   for (var i = imgs.length - 1; i >= 0; i--) {
     var img = imgs[i];
     var src = (img.getAttribute("src") || "").trim();
     if (!src || src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("chrome-extension:")) {
+      img.parentNode.removeChild(img);
+      continue;
+    }
+    var ext = src.split("?").shift().split("#").shift().split(".").pop().toLowerCase();
+    if (ext === "svg") {
       img.parentNode.removeChild(img);
     }
   }
@@ -387,6 +427,7 @@ async function generateEpub(opts) {
     originalHtml = "",
     url = "",
     title: titleOverride = "",
+    summary = "",
     keepImages = true,
     keepLinks = true,
     rotateImages = true,
@@ -555,11 +596,15 @@ async function generateEpub(opts) {
   bodyHtml = serializer.serializeToString(doc.body);
   bodyHtml = bodyHtml.replace(/^<body[^>]*>/, '').replace(/<\/body>$/, '');
   bodyHtml = _sanitizeKindleText(bodyHtml);
+  bodyHtml = _escapeGtInText(bodyHtml);
+  var summaryHtml = summary
+    ? '<div class="p2k-summary">\n  <h2>TL;DR</h2>\n  <p>' + _esc(summary) + '</p>\n</div>\n  '
+    : "";
   contentHtml =
     "<body>\n" +
     '  <h1 id="title">' + _esc(title) + "</h1>\n" +
     (author ? '  <p class="byline">' + _esc(author) + "</p>\n" : "") +
-    "  " + bodyHtml + "\n" +
+    "  " + summaryHtml + bodyHtml + "\n" +
     "</body>";
 
   var contentXhtml = _epubXmlHeader() +

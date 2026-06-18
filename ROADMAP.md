@@ -1,12 +1,11 @@
 # iOS Roadmpa
-Turn scriptable workflow more immediate: currently saves to files and then i send manually to my kindle address. I want the saved file to be sent directly by email, without my intervention.
+
 
 # Web2Kindle Roadmap
 
 
 ## 🟢 Ready now (no blockers, standalone)
 - **7-day unlimited trial** — trial mode for Pro before requiring purchase
-https://en.wikipedia.org/wiki/Web_scraping
 
 ## 🟡 Needs prerequisite first
 _none_

@@ -54,6 +54,8 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
   chrome.tabs.create({ url: processorUrl, active: false, index: (tab ? tab.index : 0) + 1 });
 });
 
+var _previewBase64 = null;
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "processorDone" && sender.tab) {
     chrome.tabs.remove(sender.tab.id);
@@ -61,8 +63,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === "openPreview" && sender.tab) {
+    _previewBase64 = msg.epubBase64 || null;
     chrome.tabs.update(sender.tab.id, { url: chrome.runtime.getURL("preview.html"), active: true });
     return;
+  }
+
+  if (msg.action === "getPreviewBase64") {
+    sendResponse({ base64: _previewBase64 });
+    return true;
   }
 
   if (msg.action === "fetchPageContent") {

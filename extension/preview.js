@@ -169,7 +169,10 @@ function init(data) {
   _epubBase64 = data.epubBase64 || "";
   var escTitle = esc(data.title || "Article");
   var safeTitle = escTitle.replace(/[^a-zA-Z0-9_ -]/g, "").trim().slice(0, 80) || "article";
-  var sectionsHtml = wrapSections(data.content || "");
+  var summaryHtml = data.summary
+    ? '<div class="p2k-section p2k-section-summary"><div class="p2k-rm" onclick="rmSec(this)">✕</div><h2>TL;DR</h2><p>' + esc(data.summary) + '</p></div>'
+    : "";
+  var sectionsHtml = summaryHtml + wrapSections(data.content || "");
 
   document.title = escTitle + " — Preview";
   document.getElementById("loading").remove();
@@ -275,13 +278,20 @@ function init(data) {
   msg("Preview ready");
 }
 
-chrome.storage.local.get("preview_data", function (result) {
+chrome.storage.local.get("preview_data", async function (result) {
   if (!result.preview_data) {
     document.getElementById("loading").innerHTML = "<p style='color:#dc2626'>Preview data not found. Close this tab and try again.</p>";
     return;
   }
-  var openerTabId = result.preview_data.openerTabId;
-  init(result.preview_data);
+  var data = result.preview_data;
+  if (!data.epubBase64) {
+    var resp = await new Promise(function(resolve) {
+      chrome.runtime.sendMessage({ action: "getPreviewBase64" }, resolve);
+    });
+    data.epubBase64 = (resp && resp.base64) || "";
+  }
+  var openerTabId = data.openerTabId;
+  init(data);
   chrome.storage.local.remove("preview_data");
   if (openerTabId) {
     window.addEventListener("pagehide", function () {

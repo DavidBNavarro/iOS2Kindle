@@ -7,3 +7,4 @@ history.db
 tests/output/*.epub
 tests/*.epub
 test_urls.md
+.vercel

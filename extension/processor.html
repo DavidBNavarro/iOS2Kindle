@@ -33,7 +33,7 @@
     <h2 id="result-title"></h2>
     <p id="result-message"></p>
     <div>
-      <button class="btn" onclick="window.close()">Close Tab</button>
+      <button class="btn" id="btn-close-success">Close Tab</button>
     </div>
   </div>
   <div class="result" id="result-error">
@@ -42,7 +42,7 @@
     <p id="error-message"></p>
     <div class="error-detail" id="error-detail"></div>
     <div>
-      <button class="btn btn-secondary" onclick="window.close()">Close Tab</button>
+      <button class="btn btn-secondary" id="btn-close-error">Close Tab</button>
     </div>
   </div>
 </div>
@@ -54,6 +54,7 @@
 <script src="history-store.js"></script>
 <script src="image-processor.js"></script>
 <script src="epub-generator.js"></script>
+<script src="gemini-summarizer.js"></script>
 <script src="processor.js"></script>
 </body>
 </html>

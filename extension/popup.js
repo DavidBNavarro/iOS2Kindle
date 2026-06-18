@@ -77,13 +77,14 @@ async function loadServerUrl() {
 }
 
 async function loadOptions() {
-  var stored = await chrome.storage.local.get({ keepImages: true, keepLinks: true });
+  var stored = await chrome.storage.local.get({ keepImages: true, keepLinks: true, attachSummary: true });
   $("keep-images").checked = stored.keepImages;
   $("keep-links").checked = stored.keepLinks;
+  $("attach-summary").checked = stored.attachSummary;
 }
 
 function getOptions() {
-  return { keepImages: $("keep-images").checked, keepLinks: $("keep-links").checked };
+  return { keepImages: $("keep-images").checked, keepLinks: $("keep-links").checked, attachSummary: $("attach-summary").checked };
 }
 
 function isPdfUrl(url) {
@@ -112,6 +113,7 @@ function openProcessingTab(action, url, titleOverride, tabIndex, tabId) {
   params.set("url", url);
   params.set("keepImages", $("keep-images").checked ? "1" : "0");
   params.set("keepLinks", $("keep-links").checked ? "1" : "0");
+  params.set("attachSummary", $("attach-summary").checked ? "1" : "0");
   params.set("serverUrl", SERVER);
   if (titleOverride) params.set("title", titleOverride);
   params.set("tabIndex", String(tabIndex || 0));
@@ -499,6 +501,7 @@ async function handleBatchSend() {
         urls: urls,
         keepImages: $("keep-images").checked,
         keepLinks: $("keep-links").checked,
+        attachSummary: $("attach-summary").checked,
       }
     }, resolve);
   });
@@ -524,6 +527,7 @@ async function handleBatchDownload() {
         urls: urls,
         keepImages: $("keep-images").checked,
         keepLinks: $("keep-links").checked,
+        attachSummary: $("attach-summary").checked,
       }
     }, resolve);
   });
@@ -548,6 +552,7 @@ async function handleBatchRetry(failedItems, mode) {
         urls: urls,
         keepImages: $("keep-images").checked,
         keepLinks: $("keep-links").checked,
+        attachSummary: $("attach-summary").checked,
       }
     }, resolve);
   });
@@ -681,4 +686,5 @@ document.addEventListener("DOMContentLoaded", function() {
 
   $("keep-images").addEventListener("change", function(){ chrome.storage.local.set({ keepImages: $("keep-images").checked }); });
   $("keep-links").addEventListener("change", function(){ chrome.storage.local.set({ keepLinks: $("keep-links").checked }); });
+  $("attach-summary").addEventListener("change", function(){ chrome.storage.local.set({ attachSummary: $("attach-summary").checked }); });
 });

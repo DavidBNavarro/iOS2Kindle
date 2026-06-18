@@ -1,6 +1,6 @@
 const LICENSE_KEY_STORAGE = 'web2kindle_license_key';
 const LICENSE_VERIFIED_STORAGE = 'web2kindle_license_verified';
-const VERIFY_ENDPOINT = 'https://web2kindle-verify.vercel.app/api/verify';
+const VERIFY_ENDPOINT = 'https://web2kindle-sooty.vercel.app/api/verify';
 
 async function hasProLicense() {
   const result = await chrome.storage.sync.get(LICENSE_VERIFIED_STORAGE);

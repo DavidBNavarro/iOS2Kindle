@@ -9,6 +9,7 @@ var OPENER_TAB_ID = parseInt(_params.get("openerTabId") || "0", 10);
 
 var POPUP_KEEP_IMAGES = _params.get("keepImages") !== "0";
 var POPUP_KEEP_LINKS = _params.get("keepLinks") !== "0";
+var POPUP_ATTACH_SUMMARY = _params.get("attachSummary") !== "0";
 var POPUP_TITLE = _params.get("title") || "";
 var POPUP_SERVER_URL = _params.get("serverUrl") || "";
 
@@ -222,7 +223,7 @@ function postProcess(content, html, url) {
   return content;
 }
 
-async function buildEpub(article, html, url, keepImages, keepLinks, deliveryMode) {
+async function buildEpub(article, html, url, keepImages, keepLinks, deliveryMode, attachSummary) {
   setStatus("Processing content…");
   var content = postProcess(article.content || "", html, url);
   article.content = content;
@@ -236,18 +237,25 @@ async function buildEpub(article, html, url, keepImages, keepLinks, deliveryMode
     convertFormat: convertFormat,
     deliveryOptimize: deliveryOptimize,
   } : null;
+  var summary = "";
+  if (attachSummary !== false) {
+    setStatus("Generating summary…");
+    summary = await summarizeArticle(article.textContent || article.content || "", url);
+    if (summary) log("Summary: " + summary.slice(0, 80) + "…");
+  }
   setStatus("Generating EPUB…");
   var epubBlob = await generateEpub({
     article: article,
     originalHtml: html,
     url: url,
     title: article.title,
+    summary: summary,
     keepImages: keepImages,
     keepLinks: keepLinks,
     deliveryMode: deliveryMode,
     imageProcessor: imageProcessor,
   });
-  return epubBlob;
+  return { epubBlob: epubBlob, summary: summary };
 }
 
 async function handleSend(epubBlob, title) {
@@ -351,7 +359,7 @@ async function handleBatchDownload(urls, keepImages, keepLinks) {
   else showSuccess(done + " downloaded, " + failed + " failed", "Some articles could not be processed");
 }
 
-async function handlePreview(epubBlob, article, html, title) {
+async function handlePreview(epubBlob, article, html, title, summary) {
   var metadata = extractMetadata(html, TARGET_URL);
   article.author = article.author || metadata.author || "";
   article.sitename = metadata.sitename || "";
@@ -384,15 +392,15 @@ async function handlePreview(epubBlob, article, html, title) {
         content: article.content,
         detailsHtml: detailsHtml,
         metaHtml: metaParts.join(" · "),
+        summary: summary || "",
         serverUrl: POPUP_SERVER_URL,
         url: TARGET_URL,
         openerTabId: OPENER_TAB_ID,
-        epubBase64: epubBase64,
       }
     }, resolve);
   });
   log("Opening preview tab…");
-  chrome.runtime.sendMessage({ action: "openPreview" });
+  chrome.runtime.sendMessage({ action: "openPreview", epubBase64: epubBase64 });
 }
 
 async function run() {
@@ -420,14 +428,16 @@ async function run() {
       return;
     }
 
-    var keepImages, keepLinks;
+    var keepImages, keepLinks, keepSummary;
     if (MODE === "popup") {
       keepImages = POPUP_KEEP_IMAGES;
       keepLinks = POPUP_KEEP_LINKS;
+      keepSummary = POPUP_ATTACH_SUMMARY;
     } else {
-      var stored = await chrome.storage.local.get({ keepImages: true, keepLinks: true });
+      var stored = await chrome.storage.local.get({ keepImages: true, keepLinks: true, attachSummary: true });
       keepImages = stored.keepImages;
       keepLinks = stored.keepLinks;
+      keepSummary = stored.attachSummary;
     }
 
     var result;
@@ -442,14 +452,14 @@ async function run() {
     var title = POPUP_TITLE || result.article.title || "Article";
 
     setStatus("Building EPUB…");
-    var epubBlob = await buildEpub(result.article, result.html, TARGET_URL, keepImages, keepLinks, ACTION === "send" || ACTION === "batch-send");
+    var built = await buildEpub(result.article, result.html, TARGET_URL, keepImages, keepLinks, ACTION === "send" || ACTION === "batch-send", keepSummary);
 
     if (ACTION === "send") {
-      await handleSend(epubBlob, title);
+      await handleSend(built.epubBlob, title);
     } else if (ACTION === "preview") {
-      await handlePreview(epubBlob, result.article, result.html, title);
+      await handlePreview(built.epubBlob, result.article, result.html, title, built.summary);
     } else if (ACTION === "download") {
-      await handleDownload(epubBlob, title);
+      await handleDownload(built.epubBlob, title);
     }
   } catch(err) {
     log("ERROR: " + err.message + "\n" + (err.stack || ""));
@@ -457,5 +467,14 @@ async function run() {
     recordSend("", TARGET_URL, "failed", err.message);
   }
 }
+
+function closeTab() {
+  chrome.tabs.getCurrent(function(tab) {
+    if (tab && tab.id) chrome.tabs.remove(tab.id);
+  });
+}
+
+document.getElementById("btn-close-success").addEventListener("click", closeTab);
+document.getElementById("btn-close-error").addEventListener("click", closeTab);
 
 run();
