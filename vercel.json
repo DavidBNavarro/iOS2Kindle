@@ -1,3 +1,8 @@
 {
-  "framework": null
+  "framework": null,
+  "rewrites": [
+    { "source": "/", "destination": "/web/index.html" },
+    { "source": "/register", "destination": "/web/register.html" },
+    { "source": "/dashboard", "destination": "/web/dashboard.html" }
+  ]
 }
