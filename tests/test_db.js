@@ -6,9 +6,9 @@ const db = createClient({ url: ":memory:" });
 let passed = 0;
 let failed = 0;
 
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     console.log("PASS: " + name);
     passed++;
   } catch (e) {
@@ -47,7 +47,7 @@ async function main() {
   const { createUser, getUserByApiKey, getUserByForwardingAddress,
           incrementUsage, getUsage, addHistory, getHistory } = require("../lib/db");
 
-  test("createUser returns user with id, api_key, forwarding_address", async () => {
+  await test("createUser returns user with id, api_key, forwarding_address", async () => {
     const user = await createUser(db, "kindle@example.com");
     if (!user.id) throw new Error("no id");
     if (!user.api_key.startsWith("w2k_")) throw new Error("bad api_key format: " + user.api_key);
@@ -55,25 +55,25 @@ async function main() {
     if (user.kindle_email !== "kindle@example.com") throw new Error("kindle_email mismatch");
   });
 
-  test("getUserByApiKey finds user", async () => {
+  await test("getUserByApiKey finds user", async () => {
     const u = await createUser(db, "test2@example.com");
     const found = await getUserByApiKey(db, u.api_key);
     if (!found) throw new Error("user not found by api_key");
     if (found.kindle_email !== "test2@example.com") throw new Error("wrong user");
   });
 
-  test("getUserByApiKey returns null for bad key", async () => {
+  await test("getUserByApiKey returns null for bad key", async () => {
     const found = await getUserByApiKey(db, "w2k_nonexistent");
     if (found) throw new Error("should return null");
   });
 
-  test("getUserByForwardingAddress finds user", async () => {
+  await test("getUserByForwardingAddress finds user", async () => {
     const u = await createUser(db, "test3@example.com");
     const found = await getUserByForwardingAddress(db, u.forwarding_address);
     if (!found) throw new Error("user not found");
   });
 
-  test("incrementUsage creates and increments", async () => {
+  await test("incrementUsage creates and increments", async () => {
     const u = await createUser(db, "test4@example.com");
     await incrementUsage(db, u.id, "newsletter");
     await incrementUsage(db, u.id, "newsletter");
@@ -81,7 +81,7 @@ async function main() {
     if (usage.newsletter !== 2) throw new Error("expected 2, got " + usage.newsletter);
   });
 
-  test("addHistory and getHistory work", async () => {
+  await test("addHistory and getHistory work", async () => {
     const u = await createUser(db, "test5@example.com");
     await addHistory(db, u.id, "Test Article", "https://example.com", "newsletter");
     const entries = await getHistory(db, u.id, 10);
@@ -90,14 +90,13 @@ async function main() {
     if (entries[0].source_type !== "newsletter") throw new Error("source_type mismatch");
   });
 
-  test("getHistory respects limit", async () => {
+  await test("getHistory respects limit", async () => {
     const u = await createUser(db, "test6@example.com");
     for (let i = 0; i < 5; i++) {
       await addHistory(db, u.id, "Article " + i, "https://example.com/" + i, "newsletter");
     }
     const entries = await getHistory(db, u.id, 3);
     if (entries.length !== 3) throw new Error("expected 3, got " + entries.length);
-    // Most recent first
     if (entries[0].title !== "Article 4") throw new Error("wrong order, got " + entries[0].title);
   });
 
