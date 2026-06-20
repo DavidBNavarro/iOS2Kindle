@@ -53,9 +53,30 @@ Checked items get .p2k-selected highlight (existing class)
         │
         ▼
 Click → remove all checked sections + blocks in one undoable batch
-        │
+        │                                 sets _dirty = true
         ▼
 Single undoStack entry { kind: "batch", els: [...] }
+
+
+User clicks "Send to Kindle"
+        │
+        ▼
+_dirty flag set?  (any deletion or manual rotation occurred)
+        │
+        ├── No  ──► send pre-built _epubBase64 (instant, same as today)
+        │
+        └── Yes ──► _buildEpubFromPreview():
+                     │  1. Clone #p2k-content DOM
+                     │  2. Remove .p2k-removed elements
+                     │  3. Strip preview-only UI (.p2k-rm, .p2k-rot, checkboxes)
+                     │  4. Unwrap .p2k-section, .imgwrap
+                     │  5. Read data-rot per image → rotation map
+                     │  6. Strip preview-only inline styles
+                     │  7. article.content = cleaned HTML
+                     │  8. generateEpub(stored article + opts + imageProcessor wrapper)
+                     │  9. Send regenerated EPUB
+                     ▼
+              Gmail API send
 ```
 
 ## Layout
@@ -93,10 +114,16 @@ with its corresponding DOM element via a `data-item-id` attribute and a
 
 - **`extension/preview.html`** — Add CSS for checkbox gutters, checkbox
   styling, indeterminate (dim) state, and the toolbar "Delete (N)" button
-  styling. No new elements in the static HTML (toolbar and gutters are
-  injected by JS, matching the existing pattern).
+  styling. Add `<script>` tags for `lib/jszip.min.js` and
+  `epub-generator.js` (needed for EPUB regeneration at send time).
+  `image-processor.js` is already loaded.
 - **`extension/preview.js`** — Add checkbox injection, state management,
-  bidirectional section↔block sync, batch delete, and repositioning logic.
+  bidirectional section↔block sync, batch delete, repositioning logic,
+  and EPUB regeneration at send time (`_dirty` flag, `_buildEpubFromPreview`).
+- **`extension/processor.js`** — Extend `preview_data` stored in
+  `chrome.storage.local` to include the `article` metadata object and the
+  build options (`keepImages`, `keepLinks`, `rotateImages`, `deliveryMode`)
+  so preview.js can regenerate the EPUB with the same settings.
 
 No new files.
 
@@ -245,42 +272,208 @@ body.p2k-editing #p2k-content { padding-left: 32px; padding-right: 32px; }
 - **Toggling edit mode back on**: checkboxes are re-injected fresh. No
   prior selection state is restored (matches today's behavior for
   `_selectedBlock`).
-- **Send to Kindle**: batch delete is purely a DOM operation on the
-  preview. The EPUB is already generated before preview opens, so
-  deletions here do **not** affect what gets sent. This matches the
-  existing single-item delete behavior (the preview is a visual aid; the
-  EPUB was built upstream in `processor.js`). A note will be shown in the
-  spec's "Open question" if this needs revisiting — see below.
 
-## Open question (flagged for user review)
+## EPUB regeneration at send time
+
+### Problem
 
 The current architecture generates the EPUB in `processor.js` **before**
-opening the preview. All existing edit-mode deletions (single section ✕,
-single block Delete) are visual-only — they do **not** modify the EPUB
-that gets sent. This means batch delete, like single delete, would not
-actually remove content from the delivered file.
+opening the preview. The preview's edit-mode deletions (single section ✕,
+single block Delete) are visual-only — they do not modify the EPUB that
+gets sent. The user wants all edits (deletions and manual rotations) to
+affect the delivered file.
 
-This spec preserves that behavior (batch delete is visual-only). If the
-intent is for batch delete (and by extension the existing single delete)
-to affect the sent EPUB, a separate spec is needed to regenerate the
-EPUB from the edited preview DOM at send time. That is out of scope here.
+### Approach: dirty flag + regenerate on demand
+
+A `_dirty` flag tracks whether any edit occurred. At send time:
+
+- **`_dirty = false`** (no edits) → send the pre-built `_epubBase64`
+  instantly. Identical to today's behavior.
+- **`_dirty = true`** (any deletion or manual rotation) → regenerate the
+  EPUB from the current preview DOM, then send.
+
+This preserves instant send for users who don't edit, and only pays the
+regeneration cost when edits exist.
+
+### What sets `_dirty = true`
+
+| Trigger | Where |
+|---|---|
+| Single section remove (✕ button) | `_remove()` |
+| Single block remove (Delete key) | `removeBlock()` |
+| Batch delete | `deleteSelected()` |
+| Undo | `undoRm()` (any kind) |
+| Manual image rotation (↻ button click) | rotate click handler |
+
+Auto-rotation during `init()` (wide images rotated for display) does
+**not** set `_dirty` — the pre-built EPUB already applied the same
+auto-rotation (same thresholds: `_shouldAutoRotate` and
+`shouldRotateImage` are equivalent), so no regeneration is needed.
+
+### `processor.js` changes
+
+Extend `preview_data` in `handlePreview()` to include:
+
+```js
+preview_data: {
+  // ...existing fields...
+  article: {
+    author: article.author,
+    sitename: article.sitename,
+    pubDate: article.pubDate,
+    readTime: article.readTime,
+    textContent: article.textContent,
+  },
+  buildOpts: {
+    keepImages: keepImages,
+    keepLinks: keepLinks,
+    rotateImages: true,   // matches buildEpub default
+    deliveryMode: deliveryMode,
+  },
+}
+```
+
+`article.content` is not stored here — it is rebuilt from the preview DOM
+at send time. The existing `content` field in `preview_data` remains for
+the initial preview render.
+
+### `_buildEpubFromPreview()` (in preview.js)
+
+1. **Clone** `#p2k-content` into a detached fragment.
+2. **Remove** all `.p2k-removed` elements (deleted sections + blocks).
+3. **Remove** the summary section (`.p2k-section-summary`) — the summary
+   is re-added by `generateEpub` from the stored `summary` string. If the
+   summary section was `.p2k-removed` (user deleted it), set `summary = ""`
+   before calling `generateEpub` so the deletion is respected.
+4. **Strip preview-only UI**: `.p2k-rm`, `.p2k-rot` elements; any checkbox
+   or gutter elements that may have been injected into content.
+5. **Build rotation map**: for each `.imgwrap`, read `data-rot` degrees
+   and map `img.src → degrees`. Unwrap each `.imgwrap` (replace with its
+   child `<img>`).
+6. **Strip preview-only inline styles** from images (the CSS transform,
+   width, height, margin, object-fit, max-width set by `_rotateImg`).
+7. **Unwrap** all `.p2k-section` divs (replace with children).
+8. **Strip** `data-p2k-id`, `data-rot`, and other preview-only attributes.
+9. **Serialize** the cleaned fragment to HTML string → set as
+   `article.content`.
+10. **Build imageProcessor wrapper** that applies manual rotation:
+    ```js
+    var _previewImageProcessor = {
+      fetchImageAsBlob: async function(url, opts) {
+        var blob = await fetchImageAsBlob(url, opts);
+        var rot = _rotationMap.get(url);
+        if (rot && rot > 0) blob = await rotateImage(blob, rot);
+        return blob;
+      },
+      getImageInfo: getImageInfo,
+      shouldSkipImage: shouldSkipImage,
+      shouldRotateImage: function() { return false; }, // disabled — rotation handled in fetch
+      rotateImage: rotateImage,
+      convertFormat: convertFormat,
+      deliveryOptimize: deliveryOptimize,
+    };
+    ```
+    Manual rotation is applied in `fetchImageAsBlob` (before dimension
+    checks), and `shouldRotateImage` is disabled to avoid double-rotation.
+    This ensures the regenerated EPUB matches what the preview displays.
+11. **Call** `generateEpub({ article, url, title, summary, keepImages,
+    keepLinks, rotateImages: false, deliveryMode, imageProcessor })`.
+    `rotateImages: false` because rotation is already handled by the
+    wrapper.
+12. **Return** the EPUB blob → `blobToBase64` → send via Gmail.
+
+### `sendToKindle()` changes
+
+```js
+async function sendToKindle() {
+  var title = document.getElementById("p2k-title").value.trim() || "Article";
+  var btn = ...;
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  try {
+    var epubBase64 = _epubBase64;
+    if (_dirty) {
+      btn.textContent = "Building EPUB…";
+      msg("Rebuilding EPUB from your edits…");
+      var blob = await _buildEpubFromPreview();
+      epubBase64 = await blobToBase64(blob);
+    }
+    msg("Sending to Kindle…");
+    var result = await sendEmailViaBackground(epubBase64, title, _url, filename);
+    ...
+  }
+}
+```
+
+### Error handling
+
+If `_buildEpubFromPreview()` throws (e.g., image fetch fails, JSZip
+error), fall back to sending the pre-built `_epubBase64` with a warning
+message: `"Edits could not be applied — sending original EPUB"`. This
+ensures the user still gets the article, just without their edits. The
+error is logged to console.
+
+## Edge cases (EPUB regeneration)
+
+- **No edits, images present**: `_dirty = false`, pre-built EPUB sent
+  (already has auto-rotated images from processor.js). No regeneration.
+- **Edits, no images** (`keepImages = false`): regeneration is fast
+  (text-only EPUB, no image fetching). Effectively instant.
+- **Edits, images present**: regeneration re-fetches all visible images.
+  Slower (2-10s for image-heavy articles). Button shows "Building EPUB…"
+  during this phase.
+- **Image fetch fails during regeneration**: the image is skipped by
+  `generateEpub` (existing behavior — failed fetches `continue` in the
+  image loop). The EPUB is still generated without that image.
+- **All images deleted**: regeneration with `keepImages` effectively
+  produces a text-only EPUB (no `<img>` elements in cleaned content).
+- **Summary section**: removed from cleaned content (step 3 above); the
+  stored `summary` string is passed to `generateEpub`, which re-adds it
+  as `.p2k-summary` in the EPUB. If the user deleted the summary section
+  in the preview, the cleaned content won't have it, but `generateEpub`
+  will re-add it from the `summary` param. To respect the deletion, if
+  the summary section is `.p2k-removed`, set `summary = ""` before
+  calling `generateEpub`.
 
 ## Testing
 
-- **Manual**: toggle edit mode → section checkboxes appear on left, block
+### Multi-select (manual)
+
+- Toggle edit mode → section checkboxes appear on left, block
   checkboxes on right, aligned with their elements.
-- **Manual**: check a section → all its blocks check + highlight; section
+- Check a section → all its blocks check + highlight; section
   checkbox is fully checked (not dim).
-- **Manual**: uncheck one block in a checked section → section checkbox
+- Uncheck one block in a checked section → section checkbox
   becomes dim (indeterminate).
-- **Manual**: uncheck the last checked block in a section → section
+- Uncheck the last checked block in a section → section
   unchecks.
-- **Manual**: check all blocks individually → section auto-checks (no
+- Check all blocks individually → section auto-checks (no
   dim).
-- **Manual**: check 2 sections + 3 blocks → toolbar shows "Delete (5)" →
+- Check 2 sections + 3 blocks → toolbar shows "Delete (5)" →
   click → all 5 removed → "↩ Undo" restores all 5 in one click.
-- **Manual**: toggle edit mode off → checkboxes disappear, selections
+- Toggle edit mode off → checkboxes disappear, selections
   cleared.
-- **Existing tests**: `node tests/test_full_pipeline.js` and
-  `node tests/test_generateEpub.js` remain unaffected (preview UI is not
-  exercised by these tests).
+
+### EPUB regeneration (manual)
+
+- **No edits**: open preview, click "Send to Kindle" immediately →
+  button shows "Sending…" (not "Building EPUB…") → pre-built EPUB
+  sent. Confirms `_dirty = false` path.
+- **With deletions**: delete a section (✕) + a block (Delete key) →
+  click "Send to Kindle" → button shows "Building EPUB…" → sent EPUB
+  on Kindle should be missing the deleted section and block.
+- **With batch delete**: check 2 sections, click "Delete (2)" →
+  "Send to Kindle" → "Building EPUB…" → sent EPUB missing both
+  sections.
+- **With manual rotation**: rotate an image (↻) → "Send to Kindle" →
+  "Building EPUB…" → sent EPUB has the rotated image.
+- **Undo then send**: delete a section, undo, send → button shows
+  "Building EPUB…" (because `_dirty` is true even after undo) → sent
+  EPUB has the section restored (undo removed `.p2k-removed`).
+
+### Existing tests
+
+`node tests/test_full_pipeline.js` and
+`node tests/test_generateEpub.js` remain unaffected (preview UI and
+processor.js's `preview_data` extension don't change EPUB structure for
+non-preview paths).
