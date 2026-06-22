@@ -1,11 +1,9 @@
-import { createRequire } from "module";
-const require2 = createRequire(import.meta.url);
-const { JSDOM } = require2("jsdom");
-const fs = require2("fs");
-const path = require2("path");
-const npmJSZip = require2("jszip");
-const nodemailer = require2("nodemailer");
-import { query } from "../lib/turso.js";
+const { JSDOM } = require("jsdom");
+const fs = require("fs");
+const path = require("path");
+const npmJSZip = require("jszip");
+const nodemailer = require("nodemailer");
+const { query } = require("../lib/turso.js");
 
 async function processInboundEmail(payload) {
   const parsed = parseInboundPayload(payload);
@@ -29,10 +27,9 @@ async function processInboundEmail(payload) {
   const monthlyLimit = 20;
 
   if (currentUsage >= monthlyLimit) {
-    return { error: "Monthly limit reached. Upgrade to Pro for unlimited newsletters.", status: 429, user };
+    return { error: "Monthly limit reached", status: 429, user };
   }
 
-  // JSDOM imported at top of file
   const dom = new JSDOM(parsed.html || parsed.text || "");
   const body = dom.window.document.body;
 
@@ -59,9 +56,9 @@ async function processInboundEmail(payload) {
     content = body.innerHTML.trim();
   }
 
-  content = await sanitizeHtmlForEpub(content);
+  content = sanitizeHtmlForEpub(content);
 
-  const epubResult = await generateEpubInline({ title, author, content, url: "" });
+  const epubResult = generateEpubInline({ title, author, content, url: "" });
 
   await query(
     `INSERT INTO usage (user_id, year_month, count, source_type)
@@ -91,7 +88,7 @@ function parseInboundPayload(payload) {
   };
 }
 
-async function sanitizeHtmlForEpub(html) {
+function sanitizeHtmlForEpub(html) {
   const UNWRAP_TAGS = new Set([
     "article", "section", "header", "main", "footer", "aside", "nav",
     "figure", "figcaption", "details", "summary", "bdi", "font", "center"
@@ -103,7 +100,6 @@ async function sanitizeHtmlForEpub(html) {
     "iframe", "canvas", "audio", "video", "source", "track", "svg", "math"
   ]);
 
-  // JSDOM imported at top of file
   const dom = new JSDOM(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`);
   const doc = dom.window.document;
   const body = doc.body;
@@ -152,10 +148,9 @@ async function sanitizeHtmlForEpub(html) {
   return body.innerHTML;
 }
 
-async function generateEpubInline(opts) {
+function generateEpubInline(opts) {
   const ROOT = path.join(process.cwd());
 
-  // JSDOM imported at top of file
   const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 
   globalThis.document = dom.window.document;
@@ -182,7 +177,7 @@ async function generateEpubInline(opts) {
   globEval(fs.readFileSync(path.join(ROOT, "extension", "lib", "readability.js"), "utf8"));
   globEval(fs.readFileSync(path.join(ROOT, "extension", "epub-generator.js"), "utf8"));
 
-  const blob = await generateEpub({
+  const blob = generateEpub({
     article: { title: opts.title || "Untitled", author: opts.author || "", content: opts.content || "" },
     originalHtml: opts.content || "",
     url: opts.url || "",
@@ -245,7 +240,7 @@ async function sendToKindleInline(blob, kindleEmail, title) {
   });
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -267,4 +262,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: "Processing failed: " + e.message });
   }
-}
+};

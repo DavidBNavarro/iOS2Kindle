@@ -1,5 +1,5 @@
-import { query } from "../lib/turso.js";
-import crypto from "crypto";
+const { query } = require("../lib/turso.js");
+const crypto = require("crypto");
 
 async function createUser(kindleEmail) {
   const id = crypto.randomUUID();
@@ -14,7 +14,7 @@ async function createUser(kindleEmail) {
   return { id, api_key: apiKey, forwarding_address: forwardingAddress, kindle_email: kindleEmail };
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -44,4 +44,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: "Registration failed: " + e.message });
   }
-}
+};

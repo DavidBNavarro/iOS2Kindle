@@ -1,6 +1,6 @@
-import { query } from "../lib/turso.js";
+const { query } = require("../lib/turso.js");
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const apiKey = req.headers["x-api-key"];
   if (!apiKey) {
     return res.status(401).json({ error: "Missing API key" });
@@ -38,4 +38,4 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-}
+};

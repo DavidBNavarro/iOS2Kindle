@@ -1,6 +1,6 @@
-import { query } from "../lib/turso.js";
+const { query } = require("../lib/turso.js");
 
-export async function authenticate(req) {
+async function authenticate(req) {
   const apiKey = req.headers["x-api-key"] || req.body?.api_key;
 
   if (!apiKey || typeof apiKey !== "string") {
@@ -15,3 +15,5 @@ export async function authenticate(req) {
 
   return { user: result.rows[0] };
 }
+
+module.exports = { authenticate };
