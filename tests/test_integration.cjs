@@ -1,6 +1,6 @@
 const path = require("path");
 const ROOT = __dirname;
-const db = require(path.join(ROOT, "..", "lib", "db.js"));
+const db = require(path.join(ROOT, "..", "lib", "db.cjs"));
 const { createClient } = require("@libsql/client");
 
 async function main() {

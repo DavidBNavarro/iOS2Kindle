@@ -1,98 +1,46 @@
 import { parseHTML } from "../lib/linkedom-bundle.esm.js";
 import { query } from "../lib/turso.js";
+import { generateEpub } from "../lib/epub-gen.js";
+import { sendToKindle } from "../lib/smtp-send.js";
 
 function parseMultipart(body, contentType) {
-  var boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
-  if (!boundary) return {};
-  boundary = (boundary[1] || boundary[2]).trim();
+  var m = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+  if (!m) return {};
+  var boundary = (m[1] || m[2]).trim();
 
   var parts = body.split("--" + boundary);
   var fields = {};
-  var rawBoundary = Buffer.from("--" + boundary, "binary").toString();
 
   for (var raw of parts) {
     raw = raw.replace(/\r?\n$/, "");
     if (!raw || raw === "--") continue;
 
-    // Split headers from body at first double newline
     var headerEnd = raw.indexOf("\n\n");
     if (headerEnd === -1) headerEnd = raw.indexOf("\r\n\r\n");
     if (headerEnd === -1) continue;
 
-    var headerStr = raw.slice(0, headerEnd).trim();
-    var value = raw.slice(headerEnd + 2).trim();
+    var value = raw.slice(headerEnd + 2).trim()
+      .replace(/^[\r\n]+|[\r\n]+$/g, "").replace(/^--|--$/g, "").trim();
 
-    // Remove trailing boundary markers
-    value = value.replace(/^[\r\n]+|[\r\n]+$/g, "").replace(/^--|--$/g, "").trim();
-
-    // Get field name from Content-Disposition header
-    var nameMatch = headerStr.match(/name\s*=\s*"([^"]+)"/i);
+    var nameMatch = raw.slice(0, headerEnd).match(/name\s*=\s*"([^"]+)"/i);
     if (!nameMatch) continue;
-    var name = nameMatch[1];
-
-    fields[name] = value;
+    fields[nameMatch[1]] = value;
   }
   return fields;
 }
 
-function sanitizeHtml(html) {
-  var UNWRAP_TAGS = new Set([
-    "article", "section", "header", "main", "footer", "aside", "nav",
-    "figure", "figcaption", "details", "summary", "bdi", "font", "center"
-  ]);
-  var REMOVE_TAGS = new Set([
-    "input", "button", "label", "select", "textarea", "form",
-    "fieldset", "legend", "meta", "link", "style", "script", "noscript",
-    "iframe", "canvas", "audio", "video", "source", "track", "svg", "math"
-  ]);
-  var STRIP_ATTR_PAT = /^(aria-|on|data-|role|tabindex|playsinline|typeof|property|resource|prefix|vocab|about|datatype|inlist|contenteditable|spellcheck|hidden|draggable|translate|loading|sizes|srcset|frameborder|scrolling|class|style|align|valign|bgcolor|border|cellpadding|cellspacing|colspan|rowspan|nowrap|width|height)$/i;
+function extractTitle(html, fallback) {
+  if (!html) return fallback;
+  try {
+    var dom = parseHTML(html);
+    var h1 = dom.document.querySelector("h1");
+    if (h1 && h1.textContent.trim()) return h1.textContent.trim();
+  } catch (e) {}
+  return fallback;
+}
 
-  var dom = parseHTML("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" + html + "</body></html>");
-  var doc = dom.document;
-  var body = doc.body;
-
-  for (var tag of UNWRAP_TAGS) {
-    var els = body.querySelectorAll(tag);
-    for (var i = els.length - 1; i >= 0; i--) {
-      var el = els[i];
-      while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
-      el.parentNode.removeChild(el);
-    }
-  }
-  for (var tag of REMOVE_TAGS) {
-    body.querySelectorAll(tag).forEach(function(el) { el.parentNode.removeChild(el); });
-  }
-  body.querySelectorAll("*").forEach(function(el) {
-    var attrs = [...el.attributes];
-    for (var attr of attrs) {
-      if (STRIP_ATTR_PAT.test(attr.name)) el.removeAttribute(attr.name);
-    }
-    el.removeAttribute("id");
-  });
-  body.querySelectorAll("picture").forEach(function(pic) {
-    var img = pic.querySelector("img");
-    if (img) pic.parentNode.insertBefore(img, pic);
-    pic.parentNode.removeChild(pic);
-  });
-  body.querySelectorAll("img").forEach(function(img) {
-    var w = parseInt(img.getAttribute("width") || "0");
-    var h = parseInt(img.getAttribute("height") || "0");
-    var src = (img.getAttribute("src") || "").toLowerCase();
-    if ((w === 1 && h === 1) || src.includes("track") || src.includes("pixel")) {
-      img.parentNode.removeChild(img);
-    }
-  });
-  body.querySelectorAll("li").forEach(function(li) {
-    var parent = li.parentNode;
-    if (!parent || (parent.nodeName !== "UL" && parent.nodeName !== "OL")) {
-      li.parentNode.removeChild(li);
-    }
-  });
-  body.querySelectorAll("ul, ol").forEach(function(list) {
-    if (!list.querySelector("li")) list.parentNode.removeChild(list);
-  });
-
-  return body.innerHTML;
+function stripUnicodeControls(text) {
+  return String(text || "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\u00ad\ud800-\udbff\udc00-\udfff]/g, "").replace(/\s+/g, " ").trim();
 }
 
 export default async function handler(req, res) {
@@ -122,6 +70,7 @@ export default async function handler(req, res) {
     var to = (payload.to || "").trim();
     var subject = payload.subject || "";
     var html = payload.html || payload.text || "";
+    var title = extractTitle(html, subject);
 
     var userResult = await query(
       "SELECT * FROM users WHERE forwarding_address = ?",
@@ -147,22 +96,24 @@ export default async function handler(req, res) {
       return res.status(429).json({ error: "Monthly limit reached" });
     }
 
-    // Extract title from HTML using jsdom
-    var title = subject;
-    if (html) {
-      try {
-        var dom = parseHTML(html);
-        var h1 = dom.document.querySelector("h1");
-        if (h1 && h1.textContent.trim()) {
-          title = h1.textContent.trim();
-        }
-      } catch (e) {
-        // Fall back to subject
-      }
-    }
+    // Generate EPUB and send to Kindle
+    var epubBuffer = null;
+    var sendError = null;
+    var status = "pending";
 
-    // Clean HTML for storage
-    var cleanHtml = html ? sanitizeHtml(html) : "";
+    try {
+      epubBuffer = await generateEpub({
+        title: stripUnicodeControls(title || "Article"),
+        author: stripUnicodeControls(from),
+        content: html || ""
+      });
+
+      await sendToKindle(epubBuffer, user.kindle_email, title);
+      status = "sent";
+    } catch (e) {
+      sendError = e.message;
+      status = "failed";
+    }
 
     // Record usage
     await query(
@@ -170,17 +121,16 @@ export default async function handler(req, res) {
       [user.id, yearMonth]
     );
 
-    // Record in send history with html content stored
+    // Record history
     await query(
-      "INSERT INTO send_history (user_id, title, url, source_type, status)\n     VALUES (?, ?, ?, 'newsletter', 'pending')",
-      [user.id, title || "Untitled", from]
+      "INSERT INTO send_history (user_id, title, url, source_type, status)\n     VALUES (?, ?, ?, 'newsletter', ?)",
+      [user.id, title || "Untitled", from, status]
     );
 
-    return res.status(200).json({
-      success: true,
-      title: title || "Untitled",
-      has_html: !!cleanHtml
-    });
+    var response = { success: status === "sent", title: title || "Untitled", status: status };
+    if (sendError) response.error = sendError;
+
+    return res.status(status === "sent" ? 200 : 202).json(response);
 
   } catch (e) {
     return res.status(500).json({ error: "Processing failed: " + e.message });

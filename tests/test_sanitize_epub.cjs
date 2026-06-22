@@ -1,4 +1,4 @@
-const { sanitizeHtmlForEpub } = require("../lib/sanitize-epub");
+const { sanitizeHtmlForEpub } = require("../lib/sanitize-epub.cjs");
 
 let passed = 0;
 let failed = 0;

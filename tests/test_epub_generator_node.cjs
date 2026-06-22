@@ -15,7 +15,7 @@ async function test(name, fn) {
 }
 
 async function main() {
-  const { generateEpubNode } = require("../lib/epub-generator-node");
+  const { generateEpubNode } = require("../lib/epub-generator-node.cjs");
 
   await test("generates valid EPUB blob", async () => {
     const result = await generateEpubNode({

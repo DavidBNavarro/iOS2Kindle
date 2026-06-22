@@ -12,7 +12,7 @@ function test(name, fn) {
   }
 }
 
-const { extractNewsletterContent } = require("../lib/html-extractor");
+const { extractNewsletterContent } = require("../lib/html-extractor.cjs");
 
 test("extracts basic HTML content", () => {
   const html = "<html><body><h1>Newsletter Title</h1><p>Hello world</p><p>More text</p></body></html>";

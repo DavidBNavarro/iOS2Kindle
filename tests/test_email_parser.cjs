@@ -12,7 +12,7 @@ function test(name, fn) {
   }
 }
 
-const { parseSendGridWebhook } = require("../lib/email-parser");
+const { parseSendGridWebhook } = require("../lib/email-parser.cjs");
 
 test("extracts from, to, subject from SendGrid payload", () => {
   const payload = {

@@ -14,7 +14,7 @@ async function test(name, fn) {
 
 async function main() {
   await test("builds MIME message with EPUB attachment", async () => {
-    const { buildKindleMessage } = require("../lib/smtp-sender");
+    const { buildKindleMessage } = require("../lib/smtp-sender.cjs");
 
     const epubBuffer = Buffer.from("EPUB_CONTENT_PLACEHOLDER");
     const message = buildKindleMessage({
@@ -35,7 +35,7 @@ async function main() {
   });
 
   await test("message is valid RFC 2822 format", async () => {
-    const { buildKindleMessage } = require("../lib/smtp-sender");
+    const { buildKindleMessage } = require("../lib/smtp-sender.cjs");
 
     const message = buildKindleMessage({
       from: "noreply@web2kindle.com",
@@ -50,7 +50,7 @@ async function main() {
   });
 
   await test("epub buffer is base64 encoded in message", async () => {
-    const { buildKindleMessage } = require("../lib/smtp-sender");
+    const { buildKindleMessage } = require("../lib/smtp-sender.cjs");
 
     const epubContent = "Hello, Kindle!";
     const epubBuffer = Buffer.from(epubContent);

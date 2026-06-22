@@ -45,7 +45,7 @@ async function main() {
   )`);
 
   const { createUser, getUserByApiKey, getUserByForwardingAddress,
-          incrementUsage, getUsage, addHistory, getHistory } = require("../lib/db");
+          incrementUsage, getUsage, addHistory, getHistory } = require("../lib/db.cjs");
 
   await test("createUser returns user with id, api_key, forwarding_address", async () => {
     const user = await createUser(db, "kindle@example.com");
