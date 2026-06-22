@@ -8,8 +8,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node tests/test_sanitize_epub.js && node tests/test_db.js && node tests/test_smtp_sender.js && node tests/test_email_parser.js && node tests/test_html_extractor.js && node tests/test_epub_generator_node.js && node tests/test_integration.js",
-    "test:epub": "node tests/test_generateEpub.js"
+    "test": "node tests/test_sanitize_epub.cjs && node tests/test_db.cjs && node tests/test_smtp_sender.cjs && node tests/test_email_parser.cjs && node tests/test_html_extractor.cjs && node tests/test_epub_generator_node.cjs && node tests/test_integration.cjs",
+    "test:epub": "node tests/test_generateEpub.cjs"
   },
   "repository": {
     "type": "git",
@@ -18,7 +18,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/DavidBNavarro/web2kindle/issues"
   },

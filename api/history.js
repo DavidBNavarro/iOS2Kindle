@@ -1,20 +1,20 @@
-const { query } = require("../lib/turso.js");
+import { query } from "../lib/turso.js";
 
-module.exports = async function handler(req, res) {
-  const apiKey = req.headers["x-api-key"];
+export default async function handler(req, res) {
+  var apiKey = req.headers["x-api-key"];
   if (!apiKey) {
     return res.status(401).json({ error: "Missing API key" });
   }
 
   try {
-    const userResult = await query("SELECT id FROM users WHERE api_key = ?", [apiKey]);
+    var userResult = await query("SELECT id FROM users WHERE api_key = ?", [apiKey]);
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: "Invalid API key" });
     }
-    const userId = userResult.rows[0].id;
+    var userId = userResult.rows[0].id;
 
     if (req.method === "GET") {
-      const historyResult = await query(
+      var historyResult = await query(
         "SELECT * FROM send_history WHERE user_id = ? ORDER BY sent_at DESC, id DESC LIMIT 50",
         [userId]
       );
@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === "DELETE") {
-      const { id } = req.body || {};
+      var id = (req.body || {}).id;
       if (!id) {
         return res.status(400).json({ error: "Missing history entry id" });
       }

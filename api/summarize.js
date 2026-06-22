@@ -1,9 +1,4 @@
-// Vercel serverless function for AI article summarization
-// Deploy to Vercel at web2kindle-verify.vercel.app
-// Set GEMINI_API_KEY env var in Vercel dashboard (Google AI Studio key)
-// Set LICENSE_HMAC_SECRET env var (same as verify.js)
-
-var crypto = require("crypto");
+import crypto from "crypto";
 
 var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent";
 var SECRET = process.env.LICENSE_HMAC_SECRET || "dev-secret-change-in-production";
@@ -27,7 +22,8 @@ async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  var { license_key, text, url } = req.body || {};
+  var license_key = (req.body || {}).license_key;
+  var text = (req.body || {}).text;
   if (!license_key || typeof license_key !== "string") {
     return res.status(400).json({ error: "Missing license_key" });
   }
@@ -78,4 +74,4 @@ async function handler(req, res) {
   }
 };
 
-module.exports = handler;
+export default handler;
