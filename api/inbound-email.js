@@ -1,4 +1,9 @@
 import { query } from "../lib/turso.js";
+import { JSDOM } from "jsdom";
+import fs from "fs";
+import path from "path";
+import npmJSZip from "jszip";
+import nodemailer from "nodemailer";
 
 async function processInboundEmail(payload) {
   const parsed = parseInboundPayload(payload);
@@ -25,7 +30,7 @@ async function processInboundEmail(payload) {
     return { error: "Monthly limit reached. Upgrade to Pro for unlimited newsletters.", status: 429, user };
   }
 
-  const { JSDOM } = await import("jsdom");
+  // JSDOM imported at top of file
   const dom = new JSDOM(parsed.html || parsed.text || "");
   const body = dom.window.document.body;
 
@@ -96,7 +101,7 @@ async function sanitizeHtmlForEpub(html) {
     "iframe", "canvas", "audio", "video", "source", "track", "svg", "math"
   ]);
 
-  const { JSDOM } = await import("jsdom");
+  // JSDOM imported at top of file
   const dom = new JSDOM(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`);
   const doc = dom.window.document;
   const body = doc.body;
@@ -146,12 +151,9 @@ async function sanitizeHtmlForEpub(html) {
 }
 
 async function generateEpubInline(opts) {
-  const fs = await import("fs");
-  const path = await import("path");
-
   const ROOT = path.join(process.cwd());
 
-  const { JSDOM } = await import("jsdom");
+  // JSDOM imported at top of file
   const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 
   globalThis.document = dom.window.document;
@@ -162,8 +164,7 @@ async function generateEpubInline(opts) {
   globalThis.DOMTokenList = dom.window.DOMTokenList;
   globalThis.Set = Set;
 
-  const JSZipModule = await import("jszip");
-  globalThis.JSZip = JSZipModule.default || JSZipModule;
+  globalThis.JSZip = npmJSZip;
 
   globalThis.Blob = class Blob {
     constructor(parts, opts) {
@@ -192,8 +193,6 @@ async function generateEpubInline(opts) {
 }
 
 async function sendToKindleInline(blob, kindleEmail, title) {
-  const nodemailer = await import("nodemailer");
-
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || "587");
   const user = process.env.SMTP_USER;
@@ -233,7 +232,7 @@ async function sendToKindleInline(blob, kindleEmail, title) {
 
   const rawMessage = lines.join("");
 
-  const transporter = nodemailer.default.createTransport({
+  const transporter = nodemailer.createTransport({
     host, port, secure: port === 465,
     auth: { user, pass }
   });
