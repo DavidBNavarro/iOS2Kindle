@@ -1,9 +1,11 @@
+import { createRequire } from "module";
+const require2 = createRequire(import.meta.url);
+const { JSDOM } = require2("jsdom");
+const fs = require2("fs");
+const path = require2("path");
+const npmJSZip = require2("jszip");
+const nodemailer = require2("nodemailer");
 import { query } from "../lib/turso.js";
-import { JSDOM } from "jsdom";
-import fs from "fs";
-import path from "path";
-import npmJSZip from "jszip";
-import nodemailer from "nodemailer";
 
 async function processInboundEmail(payload) {
   const parsed = parseInboundPayload(payload);
