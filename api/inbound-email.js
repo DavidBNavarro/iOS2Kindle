@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 import { query } from "../lib/turso.js";
 
 function parseInboundPayload(payload) {
@@ -23,8 +23,8 @@ function sanitizeHtmlForEpub(html) {
   ]);
   var STRIP_ATTR_PAT = /^(aria-|on|data-|role|tabindex|playsinline|typeof|property|resource|prefix|vocab|about|datatype|inlist|contenteditable|spellcheck|hidden|draggable|translate|loading|sizes|srcset|frameborder|scrolling|class|style|align|valign|bgcolor|border|cellpadding|cellspacing|colspan|rowspan|nowrap|width|height)$/i;
 
-  var dom = new JSDOM("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" + html + "</body></html>");
-  var doc = dom.window.document;
+  var dom = parseHTML("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" + html + "</body></html>");
+  var doc = dom.document;
   var body = doc.body;
 
   for (var tag of UNWRAP_TAGS) {
@@ -89,11 +89,10 @@ async function processInboundEmail(payload) {
     return { status: 429, error: "Monthly limit reached", user: user };
   }
 
-  var dom = new JSDOM(parsed.html || parsed.text || "");
-  var body = dom.window.document.body;
+  var dom = parseHTML(parsed.html || parsed.text || "");
+  var body = dom.document.body;
 
   var title = parsed.subject || "";
-  var content = "";
 
   if (body) {
     body.querySelectorAll("img").forEach(function(img) {
@@ -110,7 +109,6 @@ async function processInboundEmail(payload) {
     var h1 = body.querySelector("h1");
     if (h1) title = h1.textContent.trim();
 
-    content = sanitizeHtmlForEpub(body.innerHTML.trim());
   }
 
   await query(
