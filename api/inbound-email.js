@@ -1,20 +1,9 @@
-import { createClient } from "@libsql/client/web";
-import crypto from "crypto";
-
-function getDb() {
-  const url = process.env.TURSO_DATABASE_URL;
-  const token = process.env.TURSO_AUTH_TOKEN;
-  return createClient({ url, authToken: token });
-}
+import { query } from "../lib/turso.js";
 
 async function processInboundEmail(payload) {
   const parsed = parseInboundPayload(payload);
 
-  const db = getDb();
-  const userResult = await db.execute({
-    sql: "SELECT * FROM users WHERE forwarding_address = ?",
-    args: [parsed.to]
-  });
+  const userResult = await query("SELECT * FROM users WHERE forwarding_address = ?", [parsed.to]);
 
   if (userResult.rows.length === 0) {
     return { error: "Unknown forwarding address", status: 404 };
@@ -24,12 +13,12 @@ async function processInboundEmail(payload) {
 
   const now = new Date();
   const yearMonth = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
-  const usageResult = await db.execute({
-    sql: "SELECT count FROM usage WHERE user_id = ? AND year_month = ? AND source_type = 'newsletter'",
-    args: [user.id, yearMonth]
-  });
+  const usageResult = await query(
+    "SELECT count FROM usage WHERE user_id = ? AND year_month = ? AND source_type = 'newsletter'",
+    [user.id, yearMonth]
+  );
 
-  const currentUsage = usageResult.rows.length > 0 ? usageResult.rows[0].count : 0;
+  const currentUsage = usageResult.rows.length > 0 ? parseInt(usageResult.rows[0].count) : 0;
   const monthlyLimit = 20;
 
   if (currentUsage >= monthlyLimit) {
@@ -67,18 +56,18 @@ async function processInboundEmail(payload) {
 
   const epubResult = await generateEpubInline({ title, author, content, url: "" });
 
-  await db.execute({
-    sql: `INSERT INTO usage (user_id, year_month, count, source_type)
-          VALUES (?, ?, 1, 'newsletter')
-          ON CONFLICT(user_id, year_month, source_type)
-          DO UPDATE SET count = count + 1`,
-    args: [user.id, yearMonth]
-  });
+  await query(
+    `INSERT INTO usage (user_id, year_month, count, source_type)
+     VALUES (?, ?, 1, 'newsletter')
+     ON CONFLICT(user_id, year_month, source_type)
+     DO UPDATE SET count = count + 1`,
+    [user.id, yearMonth]
+  );
 
-  await db.execute({
-    sql: "INSERT INTO send_history (user_id, title, source_type) VALUES (?, ?, 'newsletter')",
-    args: [user.id, title]
-  });
+  await query(
+    "INSERT INTO send_history (user_id, title, source_type) VALUES (?, ?, 'newsletter')",
+    [user.id, title || "Untitled"]
+  );
 
   await sendToKindleInline(epubResult.blob, user.kindle_email, title);
 

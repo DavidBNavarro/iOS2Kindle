@@ -1,10 +1,4 @@
-import { createClient } from "@libsql/client/web";
-
-function getDb() {
-  const url = process.env.TURSO_DATABASE_URL;
-  const token = process.env.TURSO_AUTH_TOKEN;
-  return createClient({ url, authToken: token });
-}
+import { query } from "../lib/turso.js";
 
 export async function authenticate(req) {
   const apiKey = req.headers["x-api-key"] || req.body?.api_key;
@@ -13,11 +7,7 @@ export async function authenticate(req) {
     return { error: "Missing API key", status: 401 };
   }
 
-  const db = getDb();
-  const result = await db.execute({
-    sql: "SELECT * FROM users WHERE api_key = ?",
-    args: [apiKey.trim()]
-  });
+  const result = await query("SELECT * FROM users WHERE api_key = ?", [apiKey.trim()]);
 
   if (result.rows.length === 0) {
     return { error: "Invalid API key", status: 401 };
