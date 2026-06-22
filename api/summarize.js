@@ -3,11 +3,11 @@
 // Set GEMINI_API_KEY env var in Vercel dashboard (Google AI Studio key)
 // Set LICENSE_HMAC_SECRET env var (same as verify.js)
 
-import crypto from "crypto";
+var crypto = require("crypto");
 
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent";
-const SECRET = process.env.LICENSE_HMAC_SECRET || "dev-secret-change-in-production";
-const API_KEY = process.env.GEMINI_API_KEY || "";
+var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent";
+var SECRET = process.env.LICENSE_HMAC_SECRET || "dev-secret-change-in-production";
+var API_KEY = process.env.GEMINI_API_KEY || "";
 
 function verifyLicense(key) {
   var match = key.match(/^WK-([A-Z0-9]{4})-([A-Z0-9]{4})-([A-Z0-9]{4})$/);
@@ -22,7 +22,7 @@ function verifyLicense(key) {
   return sig === expected;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -76,4 +76,6 @@ export default async function handler(req, res) {
     console.error("Summarization failed:", err);
     return res.status(502).json({ error: "AI service unavailable" });
   }
-}
+};
+
+module.exports = handler;
