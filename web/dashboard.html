@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Web2Kindle</title>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1c25; --surface2: #23252f;
+  --border: #2e3040; --text: #e1e4ed; --text-muted: #8b8fa3;
+  --accent: #3b82f6; --accent-green: #10b981; --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 20px; }
+.container { max-width: 700px; margin: 0 auto; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+h1 { font-size: 20px; }
+h1 span { color: var(--accent); }
+.logout { color: var(--text-muted); font-size: 13px; cursor: pointer; background: none; border: none; }
+.logout:hover { color: var(--text); }
+.auth-screen { display: none; text-align: center; padding: 60px 20px; }
+.auth-screen h2 { margin-bottom: 16px; }
+.auth-screen input { width: 100%; max-width: 360px; margin-bottom: 12px; }
+.dashboard { display: none; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 12px; }
+.card .value { background: var(--surface2); border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 13px; display: inline-block; }
+.copy-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; margin-left: 8px; vertical-align: middle; }
+.copy-btn:hover { background: var(--border); }
+.usage-bar { height: 8px; background: var(--surface2); border-radius: 4px; margin: 12px 0 6px; overflow: hidden; }
+.usage-fill { height: 100%; background: var(--accent-green); border-radius: 4px; transition: width .3s; }
+.usage-fill.warning { background: #f59e0b; }
+.usage-fill.danger { background: #ef4444; }
+.usage-text { font-size: 12px; color: var(--text-muted); }
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.history-item:last-child { border-bottom: none; }
+.history-title { font-size: 13px; flex: 1; }
+.history-meta { font-size: 11px; color: var(--text-muted); margin-right: 12px; white-space: nowrap; }
+.empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px; }
+.placeholder-card { border: 1px dashed var(--border); opacity: .6; }
+input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+input:focus { outline: none; border-color: var(--accent); }
+.btn { background: var(--accent); color: #fff; border: none; padding: 10px 24px; border-radius: var(--radius); font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn:hover { filter: brightness(1.15); }
+.auth-screen .btn { max-width: 360px; }
+.error { color: #ef4444; font-size: 13px; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="auth-screen" id="auth-screen">
+    <h2>Enter your API key</h2>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">You received this when you signed up. Lost it? <a href="/register" style="color:var(--accent)">Register a new address</a>.</p>
+    <input type="text" id="api-key-input" placeholder="w2k_...">
+    <button class="btn" onclick="login()">Enter Dashboard</button>
+    <p class="error" id="auth-error"></p>
+  </div>
+  <div class="dashboard" id="dashboard">
+    <header><h1>Web<span>2</span>Kindle Dashboard</h1><button class="logout" onclick="logout()">Sign out</button></header>
+    <div class="card">
+      <h2>Your Forwarding Address</h2>
+      <span class="value" id="forwarding-addr">---</span>
+      <button class="copy-btn" onclick="copy('forwarding-addr')">Copy</button>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:8px">Forward any newsletter to this address. EPUB arrives on your Kindle automatically.</p>
+    </div>
+    <div class="card">
+      <h2>Usage This Month</h2>
+      <div class="usage-bar"><div class="usage-fill" id="usage-bar" style="width:0%"></div></div>
+      <p class="usage-text" id="usage-text">Loading...</p>
+    </div>
+    <div class="card">
+      <h2>Recent Sends</h2>
+      <div id="history-list"><p class="empty">Loading...</p></div>
+    </div>
+    <div class="card placeholder-card">
+      <h2>RSS Feeds</h2>
+      <p style="font-size:13px;color:var(--text-muted)">Coming soon. Subscribe to RSS feeds and get new articles delivered to your Kindle automatically.</p>
+    </div>
+    <div class="card">
+      <h2>Your API Key</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Paste this in the Chrome extension options to link your account:</p>
+      <span class="value" id="api-key-display">---</span>
+      <button class="copy-btn" onclick="copy('api-key-display')">Copy</button>
+    </div>
+  </div>
+</div>
+<script>
+const API_BASE = "/api";
+function getApiKey() { return localStorage.getItem("w2k_api_key"); }
+
+async function checkAuth() {
+  const key = getApiKey();
+  if (!key) { document.getElementById("auth-screen").style.display = "block"; document.getElementById("dashboard").style.display = "none"; return false; }
+  try {
+    const res = await fetch(API_BASE + "/usage", { headers: { "x-api-key": key } });
+    if (!res.ok) throw new Error("Invalid key");
+    document.getElementById("auth-screen").style.display = "none"; document.getElementById("dashboard").style.display = "block";
+    return true;
+  } catch { document.getElementById("auth-screen").style.display = "block"; document.getElementById("dashboard").style.display = "none"; return false; }
+}
+
+async function login() {
+  const key = document.getElementById("api-key-input").value.trim();
+  const errorEl = document.getElementById("auth-error");
+  if (!key.startsWith("w2k_")) { errorEl.textContent = "Invalid API key format. Should start with w2k_"; errorEl.style.display = "block"; return; }
+  localStorage.setItem("w2k_api_key", key);
+  if (await checkAuth()) { loadDashboard(); } else { errorEl.textContent = "Invalid API key."; errorEl.style.display = "block"; localStorage.removeItem("w2k_api_key"); }
+}
+
+function logout() { localStorage.removeItem("w2k_api_key"); document.getElementById("auth-screen").style.display = "block"; document.getElementById("dashboard").style.display = "none"; }
+
+async function loadDashboard() {
+  const key = getApiKey();
+  if (!key) return;
+  const fa = localStorage.getItem("w2k_forwarding_address") || "---";
+  document.getElementById("forwarding-addr").textContent = fa;
+  document.getElementById("api-key-display").textContent = key;
+  try {
+    const res = await fetch(API_BASE + "/usage", { headers: { "x-api-key": key } });
+    const data = await res.json();
+    const count = data.usage?.newsletter || 0; const limit = data.limits?.newsletter || 20;
+    const pct = Math.min((count / limit) * 100, 100);
+    const bar = document.getElementById("usage-bar"); bar.style.width = pct + "%";
+    bar.className = "usage-fill" + (pct > 90 ? " danger" : pct > 75 ? " warning" : "");
+    document.getElementById("usage-text").textContent = count + " / " + limit + " newsletters this month";
+  } catch { document.getElementById("usage-text").textContent = "Unable to load usage"; }
+  try {
+    const res = await fetch(API_BASE + "/history", { headers: { "x-api-key": key } });
+    const data = await res.json(); const items = data.history || [];
+    const list = document.getElementById("history-list");
+    if (items.length === 0) { list.innerHTML = '<p class="empty">No sends yet. Forward a newsletter to get started!</p>'; }
+    else { list.innerHTML = items.map(item => `<div class="history-item"><span class="history-title">${escHtml(item.title || "Untitled")}</span><span class="history-meta">${formatDate(item.sent_at)}</span></div>`).join(""); }
+  } catch { document.getElementById("history-list").innerHTML = '<p class="empty">Unable to load history</p>'; }
+}
+
+function copy(id) { navigator.clipboard.writeText(document.getElementById(id).textContent); }
+function escHtml(s) { if (!s) return ""; return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function formatDate(d) { if (!d) return ""; return new Date(d.replace(" ", "T") + "Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+
+(async () => {
+  if (getApiKey() && await checkAuth()) { loadDashboard(); } else if (!getApiKey()) { document.getElementById("auth-screen").style.display = "block"; }
+})();
+</script>
+</body>
+</html>

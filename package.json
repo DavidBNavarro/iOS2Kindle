@@ -8,7 +8,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tests/test_sanitize_epub.js && node tests/test_db.js && node tests/test_smtp_sender.js && node tests/test_email_parser.js && node tests/test_html_extractor.js && node tests/test_epub_generator_node.js && node tests/test_integration.js",
+    "test:epub": "node tests/test_generateEpub.js"
   },
   "repository": {
     "type": "git",
@@ -23,7 +24,9 @@
   },
   "homepage": "https://github.com/DavidBNavarro/web2kindle#readme",
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "jsdom": "^29.1.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "nodemailer": "^6.9.0"
   }
 }

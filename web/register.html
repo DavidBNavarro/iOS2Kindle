@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register — Web2Kindle</title>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1c25; --border: #2e3040;
+  --text: #e1e4ed; --text-muted: #8b8fa3; --accent: #3b82f6; --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.container { max-width: 480px; width: 100%; }
+h1 { font-size: 24px; margin-bottom: 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 14px; margin-bottom: 16px; }
+input:focus { outline: none; border-color: var(--accent); }
+.btn { width: 100%; background: var(--accent); color: #fff; border: none; padding: 12px; border-radius: var(--radius); font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.result { display: none; }
+.result h3 { font-size: 14px; margin-bottom: 8px; color: var(--accent); }
+.value { background: var(--bg); border: 1px solid var(--border); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 13px; margin-bottom: 12px; word-break: break-all; }
+.copy-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; margin-left: 8px; }
+.copy-btn:hover { background: var(--border); }
+.error { color: #ef4444; font-size: 13px; margin-top: 8px; display: none; }
+.note { color: var(--text-muted); font-size: 12px; margin-top: 16px; line-height: 1.5; }
+code { background: var(--bg); padding: 2px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Get Your Forwarding Address</h1>
+  <div class="card" id="form-card">
+    <form id="register-form">
+      <label for="kindle-email">Your Kindle email address</label>
+      <input type="email" id="kindle-email" placeholder="you@kindle.com" required autofocus>
+      <button type="submit" class="btn" id="submit-btn">Create Address</button>
+    </form>
+    <div class="error" id="error"></div>
+  </div>
+  <div class="card result" id="result-card">
+    <h3>Your Forwarding Address</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Forward newsletters to this address:</p>
+    <div class="value" id="forwarding-address"></div>
+    <button class="copy-btn" onclick="copyAddress()">Copy</button>
+    <h3 style="margin-top:20px">Your API Key</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Paste this in the Chrome extension options to link your account:</p>
+    <div class="value" id="api-key"></div>
+    <button class="copy-btn" onclick="copyApiKey()">Copy</button>
+    <p class="note"><strong>Next step:</strong> Add <code>noreply@web2kindle.com</code> to your Kindle's <a href="https://www.amazon.com/myk" target="_blank" style="color:var(--accent)">Approved Personal Document E-mail List</a>.</p>
+  </div>
+  <p style="font-size:13px;text-align:center"><a href="/dashboard" style="color:var(--accent)">Go to dashboard</a></p>
+</div>
+<script>
+document.getElementById("register-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("kindle-email").value.trim();
+  const btn = document.getElementById("submit-btn");
+  const errorEl = document.getElementById("error");
+  if (!email.includes("@")) { errorEl.textContent = "Please enter a valid email address"; errorEl.style.display = "block"; return; }
+  btn.disabled = true; btn.textContent = "Creating..."; errorEl.style.display = "none";
+  try {
+    const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kindle_email: email }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Registration failed");
+    document.getElementById("forwarding-address").textContent = data.forwarding_address;
+    document.getElementById("api-key").textContent = data.api_key;
+    document.getElementById("form-card").style.display = "none";
+    document.getElementById("result-card").style.display = "block";
+    localStorage.setItem("w2k_api_key", data.api_key);
+    localStorage.setItem("w2k_forwarding_address", data.forwarding_address);
+  } catch (err) { errorEl.textContent = err.message; errorEl.style.display = "block"; btn.disabled = false; btn.textContent = "Create Address"; }
+});
+function copyAddress() { navigator.clipboard.writeText(document.getElementById("forwarding-address").textContent); }
+function copyApiKey() { navigator.clipboard.writeText(document.getElementById("api-key").textContent); }
+</script>
+</body>
+</html>

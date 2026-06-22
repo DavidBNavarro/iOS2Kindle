@@ -32,6 +32,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const kindle = await chrome.storage.sync.get({ kindle_email: "" });
   if (kindle.kindle_email) document.getElementById("kindle-email").value = kindle.kindle_email;
 
+  const apiKey = await chrome.storage.sync.get({ api_key: "" });
+  if (apiKey.api_key) document.getElementById("api-key").value = apiKey.api_key;
+
   // License
   const licenseKeyInput = document.getElementById("license-key");
   const licenseStatus = document.getElementById("license-status");
@@ -88,6 +91,7 @@ document.getElementById("config-form").addEventListener("submit", async (e) => {
   const archiveRenderStrategy = document.getElementById("archive-render").value;
 
   const kindle_email = document.getElementById("kindle-email").value.trim();
+  const api_key = document.getElementById("api-key").value.trim();
 
   await chrome.storage.sync.set({
     serverUrl: newServerUrl,
@@ -98,6 +102,7 @@ document.getElementById("config-form").addEventListener("submit", async (e) => {
     archiveRetries,
     archiveRenderStrategy,
     kindle_email: kindle_email || undefined,
+    api_key: api_key || undefined,
   });
   SERVER = newServerUrl;
 
