@@ -11,7 +11,7 @@ async function createUser(db, kindleEmail) {
   const id = crypto.randomUUID();
   const apiKey = "w2k_" + crypto.randomBytes(12).toString("hex");
   const slug = crypto.randomBytes(4).toString("hex");
-  const domain = process.env.INBOUND_DOMAIN || "inbound.web2kindle.com";
+  const domain = process.env.INBOUND_DOMAIN || "inbound.web2reader.com";
   const forwardingAddress = "wk-" + slug + "@" + domain;
 
   await db.execute({

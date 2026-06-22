@@ -68,7 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.getElementById("btn-buy-license").addEventListener("click", () => {
-    chrome.tabs.create({ url: "https://web2kindle.com/upgrade" });
+    chrome.tabs.create({ url: "https://web2reader.com/upgrade" });
   });
 
   document.getElementById("btn-remove-license").addEventListener("click", async () => {
