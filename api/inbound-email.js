@@ -1,4 +1,4 @@
-import { JSDOM } from "jsdom";
+import { parseHTML } from "../lib/linkedom-bundle.esm.js";
 import { query } from "../lib/turso.js";
 
 function parseMultipart(body, contentType) {
@@ -47,8 +47,8 @@ function sanitizeHtml(html) {
   ]);
   var STRIP_ATTR_PAT = /^(aria-|on|data-|role|tabindex|playsinline|typeof|property|resource|prefix|vocab|about|datatype|inlist|contenteditable|spellcheck|hidden|draggable|translate|loading|sizes|srcset|frameborder|scrolling|class|style|align|valign|bgcolor|border|cellpadding|cellspacing|colspan|rowspan|nowrap|width|height)$/i;
 
-  var dom = new JSDOM("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" + html + "</body></html>");
-  var doc = dom.window.document;
+  var dom = parseHTML("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>" + html + "</body></html>");
+  var doc = dom.document;
   var body = doc.body;
 
   for (var tag of UNWRAP_TAGS) {
@@ -151,8 +151,8 @@ export default async function handler(req, res) {
     var title = subject;
     if (html) {
       try {
-        var dom = new JSDOM(html);
-        var h1 = dom.window.document.querySelector("h1");
+        var dom = parseHTML(html);
+        var h1 = dom.document.querySelector("h1");
         if (h1 && h1.textContent.trim()) {
           title = h1.textContent.trim();
         }

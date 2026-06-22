@@ -4,10 +4,5 @@
     { "source": "/", "destination": "/web/index.html" },
     { "source": "/register", "destination": "/web/register.html" },
     { "source": "/dashboard", "destination": "/web/dashboard.html" }
-  ],
-  "functions": {
-    "api/inbound-email.js": {
-      "includeFiles": "node_modules/{@asamuzakjp/{css-color,generational-cache,dom-selector,nwsapi},@csstools/{css-calc,css-color-parser,css-parser-algorithms,css-tokenizer,css-syntax-patches-for-csstree},@bramus/specificity,@exodus/bytes,jsdom,bidi-js,require-from-string,css-tree,mdn-data,source-map-js,is-potential-custom-element-name,data-urls,whatwg-mimetype,whatwg-url,tr46,punycode,webidl-conversions,decimal.js,html-encoding-sniffer,lru-cache,parse5,saxes,xmlchars,symbol-tree,tough-cookie,undici,w3c-xmlserializer,xml-name-validator}/**"
-    }
-  }
+  ]
 }
