@@ -36,6 +36,6 @@ export default async function handler(req, res) {
       user: { kindle_email: user.kindle_email, forwarding_address: user.forwarding_address }
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: "Internal error" });
   }
 };

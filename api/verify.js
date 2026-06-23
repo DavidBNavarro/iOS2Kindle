@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
-var SECRET = process.env.LICENSE_HMAC_SECRET || "dev-secret-change-in-production";
+var SECRET = process.env.LICENSE_HMAC_SECRET;
+if (!SECRET) throw new Error("LICENSE_HMAC_SECRET not configured");
 
 function verifyKey(key) {
   var match = key.match(/^WK-([A-Z0-9]{4})-([A-Z0-9]{4})-([A-Z0-9]{4})$/);

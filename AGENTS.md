@@ -84,6 +84,13 @@ Output EPUBs go to `tests/output/`.
 The `extension/` directory was restored from orphaned git commits (Jun 2026). The git history was squashed
 to remove the Chrome extension files, but they remain recoverable via `git checkout f98b857 -- extension/`.
 
+## SMTP Delivery (Server-side)
+- Uses **port 465 direct TLS** (`tls.connect()`), NOT port 587 STARTTLS — Vercel Lambda's `tls.connect({socket: plain})` fails silently
+- `lib/smtp-send.js`: native Node.js `net`/`tls` zero-dep SMTP client
+- `SMTP_FROM` must be a **verified SendGrid sender identity** (single sender or domain-authenticated)
+- `SMTP_USER` is `apikey`, `SMTP_PASS` is the SendGrid API key
+
 ## Known Issues
 - No Kindle-specific validator on Mac — use Kindle Previewer 3 for conversion check
 - Dropbox corrupts binary EPUBs (UTF-8 re-encoding) — always test from Chrome directly, or AirDrop to Mac
+- SendGrid requires from-address to be verified sender identity — `davidbnavarro@gmail.com` currently used; ideally set up domain auth for `web2reader.com`

@@ -1,7 +1,8 @@
 import crypto from "crypto";
 
 var GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent";
-var SECRET = process.env.LICENSE_HMAC_SECRET || "dev-secret-change-in-production";
+var SECRET = process.env.LICENSE_HMAC_SECRET;
+if (!SECRET) throw new Error("LICENSE_HMAC_SECRET not configured");
 var API_KEY = process.env.GEMINI_API_KEY || "";
 
 function verifyLicense(key) {

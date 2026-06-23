@@ -1,7 +1,7 @@
 import { query } from "../lib/turso.js";
 
 async function authenticate(req) {
-  var apiKey = req.headers["x-api-key"] || (req.body || {}).api_key;
+  var apiKey = req.headers["x-api-key"];
 
   if (!apiKey || typeof apiKey !== "string") {
     return { error: "Missing API key", status: 401 };

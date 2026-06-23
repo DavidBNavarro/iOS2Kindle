@@ -1,4 +1,5 @@
 import { query } from "../lib/turso.js";
+import { handleCors } from "../lib/cors.js";
 import crypto from "crypto";
 
 async function createUser(kindleEmail) {
@@ -15,20 +16,22 @@ async function createUser(kindleEmail) {
 }
 
 export default async function handler(req, res) {
+  if (handleCors(req, res)) return;
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   var kindle_email = (req.body || {}).kindle_email;
 
-  if (!kindle_email || typeof kindle_email !== "string" || !kindle_email.includes("@")) {
+  var email = (kindle_email || "").trim();
+  if (!email || typeof kindle_email !== "string" || email.length > 254 || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
     return res.status(400).json({ error: "Valid kindle_email is required" });
   }
 
   try {
     await query("CREATE TABLE IF NOT EXISTS users (\n      id TEXT PRIMARY KEY,\n      api_key TEXT UNIQUE NOT NULL,\n      kindle_email TEXT NOT NULL,\n      forwarding_address TEXT UNIQUE NOT NULL,\n      created_at TEXT DEFAULT (datetime('now'))\n    )", []);
 
-    var user = await createUser(kindle_email.trim().toLowerCase());
+    var user = await createUser(email.toLowerCase());
 
     return res.status(201).json({
       api_key: user.api_key,
@@ -36,6 +39,6 @@ export default async function handler(req, res) {
       kindle_email: user.kindle_email
     });
   } catch (e) {
-    return res.status(500).json({ error: "Registration failed: " + e.message });
+    return res.status(500).json({ error: "Registration failed" });
   }
 };

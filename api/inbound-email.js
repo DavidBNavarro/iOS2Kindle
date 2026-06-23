@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: "Unknown forwarding address: " + to });
+      return res.status(404).json({ error: "Unknown forwarding address" });
     }
 
     var user = userResult.rows[0];
@@ -133,6 +133,6 @@ export default async function handler(req, res) {
     return res.status(status === "sent" ? 200 : 202).json(response);
 
   } catch (e) {
-    return res.status(500).json({ error: "Processing failed: " + e.message });
+    return res.status(500).json({ error: "Processing failed" });
   }
 };
